@@ -119,20 +119,18 @@ class PriorMotorManager:
     # ------------------------------------------------------------------
 
     def _send(self, cmd: str) -> str | None:
-        """Send a command and return the stripped response line, or None."""
         if not self.connected():
             return None
         with self._lock:
             try:
-                self.ser.reset_input_buffer()
                 self.ser.write((cmd.strip() + "\r").encode("ascii"))
                 self.ser.flush()
-                raw = self.ser.readline()
-                if not raw:
-                    return None
-                return raw.decode("ascii", errors="ignore").strip()
-            except Exception as exc:
-                print(f"[ProScan] serial error on '{cmd}': {exc}")
+                raw = self.ser.read_until(b'\r')
+             if not raw:
+                 return None
+               return raw.decode("ascii", errors="ignore").strip()
+           except Exception as exc:
+               print(f"[ProScan] serial error on '{cmd}': {exc}")
                 return None
 
     def _wait_idle(self, poll_ms: int = 50, timeout_s: float = 60.0):
