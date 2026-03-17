@@ -27,6 +27,8 @@ class MockMotorManager:
         with open(filename, "r", encoding="utf-8") as fh:
             data = json.load(fh)
         for axis, cfg in data.items():
+            if not isinstance(cfg, dict):
+                continue
             self.step_config[axis] = {
                 "step": float(cfg["step"]),
                 "invert": int(cfg.get("invert", 1)),

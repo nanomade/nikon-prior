@@ -126,11 +126,11 @@ class PriorMotorManager:
                 self.ser.write((cmd.strip() + "\r").encode("ascii"))
                 self.ser.flush()
                 raw = self.ser.read_until(b'\r')
-             if not raw:
-                 return None
-               return raw.decode("ascii", errors="ignore").strip()
-           except Exception as exc:
-               print(f"[ProScan] serial error on '{cmd}': {exc}")
+                if not raw:
+                    return None
+                return raw.decode("ascii", errors="ignore").strip()
+            except Exception as exc:
+                print(f"[ProScan] serial error on '{cmd}': {exc}")
                 return None
 
     def _wait_idle(self, poll_ms: int = 50, timeout_s: float = 60.0):
