@@ -23,18 +23,37 @@ rotation) and adapted for the ProScan III serial protocol.
 ## Hardware requirements
 
 - Prior Scientific ProScan III controller (XYZ stage)
-- USB camera (V4L2, tested with 4032×3040 sensor)
-- Linux (Ubuntu 22.04+) — Windows should work with minor path changes
+- Allied Vision Alvium 1800 U-508c camera (USB3 Vision, 2464×2056)
+- Windows 10/11 or Linux (Ubuntu 22.04+)
 
 ## Installation
 
+### Python dependencies
+
 ```bash
-pip install pyqt5 opencv-python-headless numpy pyserial pygame
-python main.py
+pip install pyqt5 opencv-python-headless numpy pyserial pygame vmbpy
 ```
 
-If the ProScan III is not detected, the application falls back to a
-software mock motor manager so imaging features still work.
+### Allied Vision Vimba X SDK
+
+`vmbpy` requires the Vimba X runtime to be installed first.
+
+1. Download **Vimba X** from the [Allied Vision website](https://www.alliedvision.com/en/products/vimba-sdk/)
+2. Run the installer (Windows) or follow the Linux steps below
+3. Install the USB transport layer (Linux only):
+   ```bash
+   sudo ./VimbaX_<ver>/cti/VimbaUSBTL_Install.sh
+   ```
+4. Add your user to the `dialout` group (Linux, for serial port access):
+   ```bash
+   sudo usermod -aG dialout $USER
+   ```
+
+If no Alvium camera is detected at startup, the application falls back to
+a synthetic `MockCameraManager` so all UI features remain usable offline.
+
+If the ProScan III is not detected, the application likewise falls back to
+a software mock motor manager.
 
 ## Serial connection
 
