@@ -243,7 +243,7 @@ class ControlWindow(QWidget):
                 cv2.imwrite(filename, frame)
 
     def update_status(self):
-        width = int(self.preview.cap.get(3)) if self.preview.cap else 0
-        height = int(self.preview.cap.get(4)) if self.preview.cap else 0
+        width = self.preview.native_width if self.preview.cap else 0
+        height = self.preview.native_height if self.preview.cap else 0
         fps = getattr(self.preview, "measured_fps", 0.0)
         self.status_label.setText(f"Resolution: {width} x {height}, FPS: {fps:.1f}")

@@ -1,6 +1,6 @@
 import sys
 
-import cv2
+from camera_manager import create_camera_manager
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QFont
 from PyQt5.QtWidgets import (
@@ -99,10 +99,10 @@ class LauncherWindow(QWidget):
         self.move(screen.right() - self.width(), screen.top())
 
     def _open_preview(self):
-        if self.preview.cap is None or not self.preview.cap.isOpened():
-            self.preview.cap = cv2.VideoCapture(0)
-            self.preview.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-            self.preview.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 960)
+        if self.preview.cap is None or not self.preview.cap.connected():
+            self.preview.cap = create_camera_manager()
+            self.preview.native_width  = self.preview.cap.native_width
+            self.preview.native_height = self.preview.cap.native_height
         if not hasattr(self.preview, "timer"):
             self.preview.timer = QTimer()
             self.preview.timer.timeout.connect(self.preview.update_frame)

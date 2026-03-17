@@ -8,6 +8,8 @@ from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgress
 from PyQt5.QtCore import QTimer, Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QMouseEvent
 
+from camera_manager import create_camera_manager
+
 class PreviewWindow(QWidget):
     _warned_calibrations = set()  # suppress repeated per-frame warnings
     color_sampled = pyqtSignal(int, int, int)  # r, g, b — emitted after eyedropper pick
@@ -83,33 +85,10 @@ class PreviewWindow(QWidget):
             ("100x", (640, 480)): (3.8326 / 4) * lens_calibrations["100x"],
             }
 
-        self.cap = cv2.VideoCapture(0, cv2.CAP_V4L2)
-        if not self.cap.isOpened():
-            print("Failed to open camera")
-            return
-        print("Camera opened successfully")
-
-        # Prefer YUYV (raw, uncompressed) over MJPEG to avoid JPEG artefacts.
-        # Falls back gracefully if the camera/bandwidth doesn't support it.
-        yuyv = cv2.VideoWriter_fourcc(*'YUYV')
-        self.cap.set(cv2.CAP_PROP_FOURCC, yuyv)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1600)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1200)
-        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # V4L2: 1=manual, 3=aperture-priority
-        self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, 4600)  # lock to neutral/lab white
-
-        actual_fourcc = int(self.cap.get(cv2.CAP_PROP_FOURCC))
-        actual_fmt = actual_fourcc.to_bytes(4, 'little').decode(errors='replace')
-        self.native_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        self.native_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        actual_awb  = self.cap.get(cv2.CAP_PROP_AUTO_WB)
-        actual_wbt  = self.cap.get(cv2.CAP_PROP_WB_TEMPERATURE)
-        actual_gain = self.cap.get(cv2.CAP_PROP_GAIN)
-        actual_exp  = self.cap.get(cv2.CAP_PROP_EXPOSURE)
-        print(f"Camera format: {actual_fmt}  {self.native_width}×{self.native_height}")
-        print(f"Auto WB: {actual_awb}  WB temp: {actual_wbt} K  "
-              f"Gain: {actual_gain}  Exposure: {actual_exp}")
+        self.cap = create_camera_manager()
+        self.native_width  = self.cap.native_width
+        self.native_height = self.cap.native_height
+        print(f"Camera ready: {self.native_width}×{self.native_height}")
 
         self.image_label = QLabel()
         self.image_label.setMinimumSize(320, 240)
@@ -177,11 +156,10 @@ class PreviewWindow(QWidget):
         self.measured_fps = 0
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_frame)
-        fps = self.cap.get(cv2.CAP_PROP_FPS)
-        self.timer.start(int(1000 / fps) if fps > 0 else 30)
+        self.timer.start(30)
 
-        controller.exposure_changed.connect(lambda v: self.cap.set(cv2.CAP_PROP_EXPOSURE, v))
-        controller.gain_changed.connect(lambda v: self.cap.set(cv2.CAP_PROP_GAIN, v))
+        controller.exposure_changed.connect(lambda v: self.cap.set_exposure_us(v))
+        controller.gain_changed.connect(lambda v: self.cap.set_gain_db(v))
         controller.auto_exposure_changed.connect(self._set_auto_exposure)
         controller.wb_temperature_changed.connect(self._set_wb_temperature)
         controller.magnification_changed.connect(self.set_magnification)
@@ -212,7 +190,7 @@ class PreviewWindow(QWidget):
                 import numpy as np
                 return self.last_output_frame.copy()
             # Fallback: grab directly from camera
-            if self.cap is not None and self.cap.isOpened():
+            if self.cap is not None and self.cap.connected():
                 ok, frame = self.cap.read()
                 return frame if ok else None
         except Exception:
@@ -381,19 +359,15 @@ class PreviewWindow(QWidget):
         self.adjustSize()
 
     def _set_auto_exposure(self, enabled):
-        # V4L2: 3 = aperture-priority (auto), 1 = manual
-        self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 3 if enabled else 1)
+        self.cap.set_auto_exposure(enabled)
 
     def _set_wb_temperature(self, kelvin):
-        # Ensure AWB is off before setting temperature, otherwise the
-        # camera may ignore the temperature and re-enable AWB.
-        self.cap.set(cv2.CAP_PROP_AUTO_WB, 0)
-        self.cap.set(cv2.CAP_PROP_WB_TEMPERATURE, kelvin)
+        pass  # Not supported on Alvium via VmbPy
 
     def set_resolution(self, res):
+        # Resolution on the Alvium is controlled via decimation in camera_manager;
+        # only update the UI geometry here.
         w, h = res
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, w)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, h)
         self.native_width, self.native_height = w, h
         self.image_label.setFixedSize(w, h)
         self.adjustSize()
@@ -650,7 +624,7 @@ class PreviewWindow(QWidget):
         return getattr(self, 'last_output_frame', None)
 
     def closeEvent(self, event):
-        self.cap.release()
+        self.cap.close()
         event.accept()
 
 class ZoomWindow(QWidget):
