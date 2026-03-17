@@ -18,9 +18,9 @@ from PyQt5.QtWidgets import (
     QSlider, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-# Slider units are µm.  Ranges match typical Prior H117 / MFC stage.
-_X_RANGE_UM = 65_000   # ±65 mm
-_Y_RANGE_UM = 42_500   # ±42.5 mm
+# Slider units are µm.  Ranges match Prior H116/2 (255×215 mm) + PS3H122 Z drive.
+_X_RANGE_UM = 127_500  # ±127.5 mm  (255 mm total travel)
+_Y_RANGE_UM = 107_500  # ±107.5 mm  (215 mm total travel)
 _Z_RANGE_UM = 25_000   # 0 – 25 mm
 
 _UM_PER_MM = 1000.0    # slider value × this factor = mm when dividing
