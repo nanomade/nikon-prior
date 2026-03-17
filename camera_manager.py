@@ -83,7 +83,7 @@ class AlviumCameraManager:
         logger.info(
             "Alvium connected: %s  firmware %s",
             self._cam.get_id(),
-            self._cam.DeviceFirmwareVersion.get(),
+            self._cam.get_feature_by_name('DeviceFirmwareVersion').get(),
         )
  
         self.set_live_mode()
@@ -122,18 +122,18 @@ class AlviumCameraManager:
         except Exception:
             pass
  
-        cam.TriggerMode.set("Off")
+        cam.get_feature_by_name("TriggerMode").set("Off")
  
         # Pixel format: raw 8-bit Bayer (debayered in read())
         try:
-            cam.PixelFormat.set(vmbpy.PixelFormat.BayerRG8)
+            cam.get_feature_by_name("PixelFormat").set("BayerRG8")
         except Exception:
-            cam.PixelFormat.set(vmbpy.PixelFormat.Rgb8)
+            cam.get_feature_by_name("PixelFormat").set("Rgb8")
  
         # Decimation — reduces bandwidth and improves live framerate
         try:
-            cam.DecimationHorizontal.set(LIVE_DECIMATION)
-            cam.DecimationVertical.set(LIVE_DECIMATION)
+            cam.get_feature_by_name("DecimationHorizontal").set(LIVE_DECIMATION)
+            cam.get_feature_by_name("DecimationVertical").set(LIVE_DECIMATION)
             self.native_width  = SENSOR_WIDTH  // LIVE_DECIMATION
             self.native_height = SENSOR_HEIGHT // LIVE_DECIMATION
         except Exception:
@@ -161,8 +161,8 @@ class AlviumCameraManager:
  
         # Reset decimation to full resolution
         try:
-            cam.DecimationHorizontal.set(1)
-            cam.DecimationVertical.set(1)
+            cam.get_feature_by_name("DecimationHorizontal").set(1)
+            cam.get_feature_by_name("DecimationVertical").set(1)
         except Exception:
             pass
  
@@ -171,15 +171,15 @@ class AlviumCameraManager:
  
         # 12-bit Bayer
         try:
-            cam.PixelFormat.set(vmbpy.PixelFormat.BayerRG12)
+            cam.get_feature_by_name("PixelFormat").set("BayerRG12")
         except Exception:
             logger.warning("BayerRG12 not available, falling back to BayerRG8")
-            cam.PixelFormat.set(vmbpy.PixelFormat.BayerRG8)
+            cam.get_feature_by_name("PixelFormat").set("BayerRG8")
  
         # Software trigger
-        cam.TriggerSelector.set("FrameStart")
-        cam.TriggerMode.set("On")
-        cam.TriggerSource.set("Software")
+        cam.get_feature_by_name("TriggerSelector").set("FrameStart")
+        cam.get_feature_by_name("TriggerMode").set("On")
+        cam.get_feature_by_name("TriggerSource").set("Software")
  
         self._mode = "capture"
         logger.info(
@@ -246,27 +246,27 @@ class AlviumCameraManager:
     def set_exposure_us(self, exposure_us: float):
         """Set exposure time in microseconds."""
         if self._cam:
-            self._cam.ExposureTime.set(float(exposure_us))
+            self._cam.get_feature_by_name("ExposureTime").set(float(exposure_us))
  
     def get_exposure_us(self) -> float:
         if self._cam:
-            return self._cam.ExposureTime.get()
+            return self._cam.get_feature_by_name("ExposureTime").get()
         return 0.0
  
     def set_gain_db(self, gain_db: float):
         """Set analogue gain in dB."""
         if self._cam:
-            self._cam.Gain.set(float(gain_db))
+            self._cam.get_feature_by_name("Gain").set(float(gain_db))
  
     def get_gain_db(self) -> float:
         if self._cam:
-            return self._cam.Gain.get()
+            return self._cam.get_feature_by_name("Gain").get()
         return 0.0
  
     def set_auto_exposure(self, enabled: bool):
         mode = "Continuous" if enabled else "Off"
         if self._cam:
-            self._cam.ExposureAuto.set(mode)
+            self._cam.get_feature_by_name("ExposureAuto").set(mode)
  
     # ------------------------------------------------------------------
     # Convenience: save a capture-mode frame to disk
