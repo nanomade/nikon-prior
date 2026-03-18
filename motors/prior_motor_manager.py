@@ -255,6 +255,14 @@ class PriorMotorManager:
         y_counts = int(round(y_mm / y_cfg.get("step", 0.001) * y_cfg.get("invert", 1)))
         self._move_absolute_counts(x=x_counts, y=y_counts, wait=wait)
 
+    def move_relative_xy_units(self, dx_mm: float, dy_mm: float, wait: bool = False):
+        """Combined XY relative move in mm — single GR command so both axes move together."""
+        x_cfg = self.step_config.get("X", {})
+        y_cfg = self.step_config.get("Y", {})
+        dx_counts = int(round(dx_mm / x_cfg.get("step", 0.0001) * x_cfg.get("invert", 1)))
+        dy_counts = int(round(dy_mm / y_cfg.get("step", 0.0001) * y_cfg.get("invert", 1)))
+        self._move_relative_counts(dx=dx_counts, dy=dy_counts, wait=wait)
+
     def home(self, axis: str | None = None):
         """Zero position without moving (set current as origin).
         Prior 'Z' command sets current position as 0,0,0.

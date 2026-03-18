@@ -60,6 +60,10 @@ class MockMotorManager:
         self.move_absolute_units("X", x_mm)
         self.move_absolute_units("Y", y_mm)
 
+    def move_relative_xy_units(self, dx_mm: float, dy_mm: float, wait: bool = False):
+        self.move_units("X", dx_mm)
+        self.move_units("Y", dy_mm)
+
     def home(self, axis: str):
         self._positions_steps[axis] = 0
 

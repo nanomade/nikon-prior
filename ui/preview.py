@@ -311,9 +311,8 @@ class PreviewWindow(QWidget):
         self.cap.set_live_binning(factor)
         self.native_width  = self.cap.native_width
         self.native_height = self.cap.native_height
-        if self.native_zoom:
-            self.image_label.setFixedSize(self.native_width, self.native_height)
-            self.adjustSize()
+        self.image_label.setFixedSize(self.native_width, self.native_height)
+        self.adjustSize()
 
     def _set_auto_exposure(self, enabled):
         self.cap.set_auto_exposure(enabled)
@@ -382,8 +381,7 @@ class PreviewWindow(QWidget):
         dx_mm =  dpx / ppm / 1000.0
         dy_mm = -dpy / ppm / 1000.0   # image +Y is down; stage +Y is up
 
-        self.motor_manager.move_units('X', dx_mm, wait=False)
-        self.motor_manager.move_units('Y', dy_mm, wait=False)
+        self.motor_manager.move_relative_xy_units(dx_mm, dy_mm, wait=False)
 
         if self.stage_controls is not None:
             sc = self.stage_controls
