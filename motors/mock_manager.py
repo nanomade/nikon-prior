@@ -47,7 +47,7 @@ class MockMotorManager:
         factor = self.step_config.get(axis, {}).get("invert", 1)
         self._positions_steps[axis] = int(round(position * factor))
 
-    def move_units(self, axis: str, delta_physical: float):
+    def move_units(self, axis: str, delta_physical: float, wait: bool = True):
         step_size = self.step_config.get(axis, {}).get("step", 1.0)
         self.move(axis, delta_physical / step_size)
 

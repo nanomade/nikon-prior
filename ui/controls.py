@@ -10,18 +10,20 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 
 _PRESETS_FILE = "focus_presets.json"
-_EXP_LOG_MAX = 10000  # max exposure in 100µs units (= 1000 ms)
+_EXP_MIN_US = 10         # 10 µs minimum (0.01 ms)
+_EXP_MAX_US = 1_000_000  # 1 s maximum
 _OBJECTIVES = ["5x", "10x", "20x", "50x", "100x"]
 
 
 def _exp_from_pos(pos):
-    """Log-scale slider position (0–1000) → exposure in 100µs units."""
-    return round(10 ** (pos / 1000.0 * math.log10(_EXP_LOG_MAX)))
+    """Log-scale slider position (0–1000) → exposure in µs."""
+    return round(_EXP_MIN_US * (_EXP_MAX_US / _EXP_MIN_US) ** (pos / 1000.0))
 
 
-def _pos_from_exp(exp):
-    """Exposure in 100µs units → log-scale slider position (0–1000)."""
-    return round(math.log10(max(1, exp)) / math.log10(_EXP_LOG_MAX) * 1000)
+def _pos_from_exp(exp_us):
+    """Exposure in µs → log-scale slider position (0–1000)."""
+    ratio = math.log(_EXP_MAX_US / _EXP_MIN_US)
+    return round(math.log(max(_EXP_MIN_US, exp_us) / _EXP_MIN_US) / ratio * 1000)
 
 
 class ControlWindow(QWidget):
@@ -36,10 +38,12 @@ class ControlWindow(QWidget):
         self._exp_presets = {obj: None for obj in _OBJECTIVES}
         self._load_exposure_presets()
 
+        self.setMinimumWidth(320)
         layout = QVBoxLayout()
         grid = QGridLayout()
+        grid.setColumnStretch(1, 1)
 
-        # --- Exposure (log scale, 0.1–1000 ms) ---
+        # --- Exposure (log scale, 0.01–1000 ms) ---
         grid.addWidget(QLabel("Exposure:"), 0, 0)
         self._exp_slider = QSlider(Qt.Horizontal)
         self._exp_slider.setRange(0, 1000)
@@ -48,20 +52,20 @@ class ControlWindow(QWidget):
         self._exp_text.setToolTip("Exposure in ms — edit and press Enter to set")
 
         def _on_exp_slider(pos):
-            exp = _exp_from_pos(pos)
-            self._exp_text.setText(f"{exp * 0.1:.1f}")
-            controller.exposure_changed.emit(float(exp))
+            exp_us = _exp_from_pos(pos)
+            self._exp_text.setText(f"{exp_us / 1000:.3f}")
+            controller.exposure_changed.emit(float(exp_us))
 
         def _on_exp_text_entered():
             try:
-                exp_units = max(1, round(float(self._exp_text.text()) * 10))
-                self._exp_slider.setValue(_pos_from_exp(exp_units))
+                exp_us = max(_EXP_MIN_US, round(float(self._exp_text.text()) * 1000))
+                self._exp_slider.setValue(_pos_from_exp(exp_us))
             except ValueError:
                 pass
 
         self._exp_slider.valueChanged.connect(_on_exp_slider)
         self._exp_text.returnPressed.connect(_on_exp_text_entered)
-        self._exp_slider.setValue(_pos_from_exp(500))  # 50 ms default
+        self._exp_slider.setValue(_pos_from_exp(600))  # 600 µs = 0.6 ms default
         grid.addWidget(self._exp_slider, 0, 1)
         grid.addWidget(self._exp_text, 0, 2)
 
@@ -97,7 +101,7 @@ class ControlWindow(QWidget):
                 try:
                     current_us = preview.cap.get_exposure_us()
                     if current_us > 0:
-                        self._exp_slider.setValue(_pos_from_exp(round(current_us / 100)))
+                        self._exp_slider.setValue(_pos_from_exp(round(current_us)))
                 except Exception:
                     pass
 
@@ -166,18 +170,6 @@ class ControlWindow(QWidget):
         avg_spin.valueChanged.connect(preview.set_temporal_average)
         grid.addWidget(avg_spin, 12, 1)
 
-        grid.addWidget(QLabel("Resolution:"), 13, 0)
-        res_selector = QComboBox()
-        resolutions = [
-            (4032, 3040), (3840, 2160), (2592, 1944), (2560, 1440),
-            (1920, 1080), (1600, 1200), (1280, 960), (1280, 760), (640, 480)
-        ]
-        for res in resolutions:
-            res_selector.addItem(f"{res[0]} x {res[1]}", res)
-        res_selector.currentIndexChanged.connect(lambda i: controller.resolution_changed.emit(res_selector.itemData(i)))
-        res_selector.setCurrentText("1600 x 1200")
-        grid.addWidget(res_selector, 13, 1)
-
         native_zoom_check = QCheckBox("Native Zoom (1:1)")
         native_zoom_check.setChecked(False)
         native_zoom_check.stateChanged.connect(lambda state: controller.native_zoom_toggled.emit(state == Qt.Checked))
@@ -218,9 +210,13 @@ class ControlWindow(QWidget):
         try:
             with open(_PRESETS_FILE) as fh:
                 data = json.load(fh)
+            # Values stored as µs; legacy files used 100µs units (<1000 → multiply by 100)
             for mag, val in data.get("exposure_defaults", {}).items():
                 if mag in self._exp_presets and val is not None:
-                    self._exp_presets[mag] = int(val)
+                    us = int(val)
+                    if us < 1000:       # likely old 100µs-unit value
+                        us *= 100
+                    self._exp_presets[mag] = us
         except Exception:
             pass
 
@@ -258,7 +254,7 @@ class ControlWindow(QWidget):
 
     def get_exposure_ms(self) -> float:
         """Return the currently displayed exposure in milliseconds."""
-        return _exp_from_pos(self._exp_slider.value()) * 0.1
+        return _exp_from_pos(self._exp_slider.value()) / 1000.0
 
     def update_status(self):
         width = self.preview.native_width if self.preview.cap else 0

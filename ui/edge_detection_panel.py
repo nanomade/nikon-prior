@@ -110,6 +110,10 @@ class AutomatedSequenceWorker(QThread):
             intensities.append(intensity)
             positions.append(current_pos)
 
+            if step_count % 5 == 0:
+                self.progress.emit(
+                    f"{axis} step {step_count}/{max_total_steps}  "
+                    f"pos={current_pos:.3f} mm  I={intensity:.0f}", 0)
             if step_count % 20 == 0:
                 print(f"  [{axis}] step {step_count}: pos={current_pos:.3f} mm  I={intensity:.1f}")
 

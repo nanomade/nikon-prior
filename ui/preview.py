@@ -29,11 +29,11 @@ class PreviewWindow(QWidget):
         # Set a magnification to None to mark it as uncalibrated — the measure
         # tool will then show distances in pixels only.
         self.calibration_table = {
-            "5x":   None,        # needs micrometer
+            "5x":   1.015,       # implied from 10x (linear scaling)
             "10x":  2.03,        # measured 2026-03-18 on nikon-257 with stage micrometer
-            "20x":  None,        # needs micrometer
-            "50x":  None,        # needs micrometer
-            "100x": None,        # needs micrometer
+            "20x":  4.06,        # implied from 10x
+            "50x":  10.15,       # implied from 10x
+            "100x": 20.30,       # implied from 10x
         }
 
         self.cap = create_camera_manager()
@@ -109,9 +109,8 @@ class PreviewWindow(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)
 
-        # controls.py emits exposure in 100µs units (1 unit = 100 µs = 0.1 ms).
-        # AlviumCameraManager.set_exposure_us() expects microseconds — multiply by 100.
-        controller.exposure_changed.connect(lambda v: self.cap.set_exposure_us(v * 100))
+        # controls.py emits exposure in µs (after the µs refactor).
+        controller.exposure_changed.connect(lambda v: self.cap.set_exposure_us(v))
         controller.gain_changed.connect(lambda v: self.cap.set_gain_db(v))
         controller.auto_exposure_changed.connect(self._set_auto_exposure)
         controller.wb_temperature_changed.connect(self._set_wb_temperature)
@@ -122,7 +121,6 @@ class PreviewWindow(QWidget):
         controller.crosshair_visible_changed.connect(self.set_crosshair_visible)
         controller.full_crosshair_changed.connect(self.set_full_crosshair)
         controller.hud_changed.connect(self.set_hud)
-        controller.resolution_changed.connect(self.set_resolution)
         controller.native_zoom_toggled.connect(self.set_native_zoom)
 
         self.scale_bar_color = "White"
@@ -307,14 +305,6 @@ class PreviewWindow(QWidget):
     def _set_wb_temperature(self, kelvin):
         pass  # Not supported on Alvium via VmbPy
 
-    def set_resolution(self, res):
-        # Resolution on the Alvium is controlled via decimation in camera_manager;
-        # only update the UI geometry here.
-        w, h = res
-        self.native_width, self.native_height = w, h
-        self.image_label.setFixedSize(w, h)
-        self.adjustSize()
-
     def start_color_pick(self):
         """Activate eyedropper: next click samples the colour at that position."""
         self._pick_mode = True
@@ -376,14 +366,14 @@ class PreviewWindow(QWidget):
         dx_mm =  dpx / ppm / 1000.0
         dy_mm = -dpy / ppm / 1000.0   # image +Y is down; stage +Y is up
 
-        self.motor_manager.move_units('X', dx_mm)
-        self.motor_manager.move_units('Y', dy_mm)
+        self.motor_manager.move_units('X', dx_mm, wait=False)
+        self.motor_manager.move_units('Y', dy_mm, wait=False)
 
         if self.stage_controls is not None:
             sc = self.stage_controls
-            cfg = self.motor_manager.step_config
-            step_x = cfg.get('X', {}).get('step', 0.005)
-            step_y = cfg.get('Y', {}).get('step', 0.005)
+            cfg = getattr(self.motor_manager, 'step_config', {})
+            step_x = cfg.get('X', {}).get('step', 0.001)
+            step_y = cfg.get('Y', {}).get('step', 0.001)
             sc.stage_x_slider.blockSignals(True)
             sc.stage_y_slider.blockSignals(True)
             sc.stage_x_slider.setValue(sc.stage_x_slider.value() + round(dx_mm / step_x))

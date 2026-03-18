@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 SENSOR_WIDTH  = 2464
 SENSOR_HEIGHT = 2056
  
-# Live feed decimation factor (4 → 616×514)
-LIVE_DECIMATION = 4
+# Live feed reduction factor — tried as Decimation first, then Binning
+LIVE_DECIMATION = 4   # 4× decimation → 616×514 (if supported)
+LIVE_BINNING    = 4   # 4× binning    → 616×514 (fallback if decimation unavailable)
  
 try:
     import vmbpy
@@ -58,8 +59,8 @@ class AlviumCameraManager:
         self._mode: str = "live"   # "live" or "capture"
  
         # Expose resolution so preview.py can read native_width / native_height
-        self.native_width  = SENSOR_WIDTH  // LIVE_DECIMATION
-        self.native_height = SENSOR_HEIGHT // LIVE_DECIMATION
+        self.native_width  = SENSOR_WIDTH  // LIVE_BINNING
+        self.native_height = SENSOR_HEIGHT // LIVE_BINNING
  
     # ------------------------------------------------------------------
     # Connection
@@ -130,15 +131,33 @@ class AlviumCameraManager:
         except Exception:
             cam.get_feature_by_name("PixelFormat").set("Rgb8")
  
-        # Decimation — reduces bandwidth and improves live framerate
+        # Resolution reduction: try Decimation, then Binning, then full res
+        reduced = False
         try:
             cam.get_feature_by_name("DecimationHorizontal").set(LIVE_DECIMATION)
             cam.get_feature_by_name("DecimationVertical").set(LIVE_DECIMATION)
             self.native_width  = SENSOR_WIDTH  // LIVE_DECIMATION
             self.native_height = SENSOR_HEIGHT // LIVE_DECIMATION
+            reduced = True
+            logger.info("Decimation %dx applied for live preview", LIVE_DECIMATION)
         except Exception:
-            # Decimation not supported — fall back to full res ROI crop
-            logger.warning("Decimation not supported, using full resolution")
+            logger.warning("Decimation not supported, trying binning")
+
+        if not reduced:
+            for factor in (LIVE_BINNING, 2):
+                try:
+                    cam.get_feature_by_name("BinningHorizontal").set(factor)
+                    cam.get_feature_by_name("BinningVertical").set(factor)
+                    self.native_width  = SENSOR_WIDTH  // factor
+                    self.native_height = SENSOR_HEIGHT // factor
+                    reduced = True
+                    logger.info("Binning %dx%d applied for live preview", factor, factor)
+                    break
+                except Exception:
+                    continue
+
+        if not reduced:
+            logger.warning("Neither decimation nor binning available — full resolution")
             self.native_width  = SENSOR_WIDTH
             self.native_height = SENSOR_HEIGHT
  
@@ -159,12 +178,13 @@ class AlviumCameraManager:
         except Exception:
             pass
  
-        # Reset decimation to full resolution
-        try:
-            cam.get_feature_by_name("DecimationHorizontal").set(1)
-            cam.get_feature_by_name("DecimationVertical").set(1)
-        except Exception:
-            pass
+        # Reset decimation and binning to full resolution
+        for feat in ("DecimationHorizontal", "DecimationVertical",
+                     "BinningHorizontal",   "BinningVertical"):
+            try:
+                cam.get_feature_by_name(feat).set(1)
+            except Exception:
+                pass
  
         self.native_width  = SENSOR_WIDTH
         self.native_height = SENSOR_HEIGHT
@@ -296,8 +316,8 @@ class MockCameraManager:
     """
  
     def __init__(self):
-        self.native_width  = SENSOR_WIDTH  // LIVE_DECIMATION
-        self.native_height = SENSOR_HEIGHT // LIVE_DECIMATION
+        self.native_width  = SENSOR_WIDTH  // LIVE_BINNING
+        self.native_height = SENSOR_HEIGHT // LIVE_BINNING
         self._mode = "live"
  
     def connect(self) -> bool:
@@ -311,8 +331,8 @@ class MockCameraManager:
         pass
  
     def set_live_mode(self):
-        self.native_width  = SENSOR_WIDTH  // LIVE_DECIMATION
-        self.native_height = SENSOR_HEIGHT // LIVE_DECIMATION
+        self.native_width  = SENSOR_WIDTH  // LIVE_BINNING
+        self.native_height = SENSOR_HEIGHT // LIVE_BINNING
         self._mode = "live"
  
     def set_capture_mode(self):
