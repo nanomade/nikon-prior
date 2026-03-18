@@ -170,6 +170,16 @@ class ControlWindow(QWidget):
         avg_spin.valueChanged.connect(preview.set_temporal_average)
         grid.addWidget(avg_spin, 12, 1)
 
+        # --- Binning ---
+        grid.addWidget(QLabel("Binning:"), 13, 0)
+        binning_selector = QComboBox()
+        binning_selector.addItems(["1x (full)", "2x", "4x"])
+        binning_selector.setCurrentText("4x")
+        binning_selector.currentTextChanged.connect(
+            lambda t: controller.binning_changed.emit(int(t.split("x")[0]))
+        )
+        grid.addWidget(binning_selector, 13, 1)
+
         native_zoom_check = QCheckBox("Native Zoom (1:1)")
         native_zoom_check.setChecked(False)
         native_zoom_check.stateChanged.connect(lambda state: controller.native_zoom_toggled.emit(state == Qt.Checked))
