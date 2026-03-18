@@ -4,7 +4,7 @@ import datetime
 import json
 import math
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QGridLayout, QLabel, QSlider, QComboBox,
+    QWidget, QVBoxLayout, QGridLayout, QLabel, QLineEdit, QSlider, QComboBox,
     QCheckBox, QPushButton, QFileDialog, QSpinBox,
 )
 from PyQt5.QtCore import Qt, QTimer
@@ -39,20 +39,31 @@ class ControlWindow(QWidget):
         layout = QVBoxLayout()
         grid = QGridLayout()
 
-        # --- Exposure (log scale, 0.1–500 ms) ---
-        self._exp_label = QLabel()
+        # --- Exposure (log scale, 0.1–1000 ms) ---
+        grid.addWidget(QLabel("Exposure:"), 0, 0)
         self._exp_slider = QSlider(Qt.Horizontal)
         self._exp_slider.setRange(0, 1000)
+        self._exp_text = QLineEdit()
+        self._exp_text.setFixedWidth(72)
+        self._exp_text.setToolTip("Exposure in ms — edit and press Enter to set")
 
         def _on_exp_slider(pos):
             exp = _exp_from_pos(pos)
-            self._exp_label.setText(f"Exposure: {exp * 0.1:.1f} ms")
+            self._exp_text.setText(f"{exp * 0.1:.1f}")
             controller.exposure_changed.emit(float(exp))
 
+        def _on_exp_text_entered():
+            try:
+                exp_units = max(1, round(float(self._exp_text.text()) * 10))
+                self._exp_slider.setValue(_pos_from_exp(exp_units))
+            except ValueError:
+                pass
+
         self._exp_slider.valueChanged.connect(_on_exp_slider)
+        self._exp_text.returnPressed.connect(_on_exp_text_entered)
         self._exp_slider.setValue(_pos_from_exp(500))  # 50 ms default
-        grid.addWidget(self._exp_label, 0, 0)
         grid.addWidget(self._exp_slider, 0, 1)
+        grid.addWidget(self._exp_text, 0, 2)
 
         # --- Gain ---
         self.add_slider(grid, "Gain", 0, 100, 0, 1, controller.gain_changed)
@@ -78,8 +89,8 @@ class ControlWindow(QWidget):
 
         def _on_auto_exposure(state):
             enabled = (state == Qt.Checked)
-            self._exp_label.setEnabled(not enabled)
             self._exp_slider.setEnabled(not enabled)
+            self._exp_text.setEnabled(not enabled)
             controller.auto_exposure_changed.emit(enabled)
             if not enabled and preview.cap:
                 # Read back actual exposure in µs; convert to 100µs units for slider
@@ -244,6 +255,10 @@ class ControlWindow(QWidget):
             frame = self.preview.get_frame()
             if frame is not None:
                 cv2.imwrite(filename, frame)
+
+    def get_exposure_ms(self) -> float:
+        """Return the currently displayed exposure in milliseconds."""
+        return _exp_from_pos(self._exp_slider.value()) * 0.1
 
     def update_status(self):
         width = self.preview.native_width if self.preview.cap else 0

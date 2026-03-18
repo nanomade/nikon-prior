@@ -162,8 +162,7 @@ class FileSavePanel(QWidget):
 
         if self._chk_exposure.isChecked():
             try:
-                exp_us = self.preview.cap.get_exposure_us()
-                exp_ms = exp_us / 1000.0
+                exp_ms = self.controls.get_exposure_ms()
                 parts.append(f"{exp_ms:.0f}ms")
             except Exception:
                 pass
