@@ -19,71 +19,22 @@ class PreviewWindow(QWidget):
         self.setWindowTitle("Preview")
         self.controller = controller
     
-        lens_calibrations = {
-            "5x": 0.5,
-            "10x": 1.0,
-            "20x": 2.0,
-            "50x": 5.0,
-            "100x": 10.0,
-            }
-        
+        # Calibration table: magnification string → pixels per µm (ppm).
+        # The Alvium 1800 U-508c always runs at full resolution (2464×2056,
+        # decimation not supported), so resolution is not a calibration axis.
+        #
+        # Theoretical starting point: Sony IMX250 pixel pitch = 3.45 µm,
+        #   ppm_theory = objective_mag / 3.45
+        # These must be verified with a stage micrometer and updated below.
+        # Set a magnification to None to mark it as uncalibrated — the measure
+        # tool will then show distances in pixels only.
         self.calibration_table = {
-            # --- 4032 x 3040 ---
-            ("5x", (4032, 3040)): 3.8326 * lens_calibrations["5x"],
-            ("10x", (4032, 3040)): 3.8326 * lens_calibrations["10x"], #measured
-            ("20x", (4032, 3040)): 3.8326 * lens_calibrations["20x"],
-            ("50x", (4032, 3040)): 3.8326 * lens_calibrations["50x"],
-            ("100x", (4032, 3040)): 3.8326 * lens_calibrations["100x"],
-
-            # --- 3840 x 2160 ---
-            ("5x", (3840, 2160)): 3.8326 * lens_calibrations["5x"],
-            ("10x", (3840, 2160)): 3.8326* lens_calibrations["10x"],
-            ("20x", (3840, 2160)): 3.8326* lens_calibrations["20x"],
-            ("50x", (3840, 2160)): 3.8326* lens_calibrations["50x"],
-            ("100x", (3840, 2160)): 3.8326 * lens_calibrations["100x"],
-
-            # --- 3264 x 2448 ---
-            ("5x", (3264, 2448)): 3.8326 * lens_calibrations["5x"],
-            ("10x", (3264, 2448)): 3.8326* lens_calibrations["10x"],
-            ("20x", (3264, 2448)): 3.8326 * lens_calibrations["20x"],
-            ("50x", (3264, 2448)): 3.8326 * lens_calibrations["50x"],
-            ("100x", (3264, 2448)): 3.8326 * lens_calibrations["100x"],
-
-            # --- 2592 x 1944 ---
-            ("5x", (2592, 1944)): 3.8326 * lens_calibrations["5x"],
-            ("10x", (2592, 1944)): 3.8326 * lens_calibrations["10x"],
-            ("20x", (2592, 1944)): 3.8326 * lens_calibrations["20x"],
-            ("50x", (2592, 1944)): 3.8326 * lens_calibrations["50x"],
-            ("100x", (2592, 1944)): 3.8326 * lens_calibrations["100x"],
-
-            # --- 1600 x 1200 - 2x binning ---
-            ("5x", (1600, 1200)): (3.8326 / 2) * lens_calibrations["5x"],
-            ("10x", (1600, 1200)): (3.8326 / 2) * lens_calibrations["10x"],
-            ("20x", (1600, 1200)): (3.8326 / 2) * lens_calibrations["20x"],
-            ("50x", (1600, 1200)): (3.8326 / 2) * lens_calibrations["50x"],
-            ("100x", (1600, 1200)): (3.8326 / 2) * lens_calibrations["100x"],
-
-            # --- 1280 x 960 - 2x binning ---
-            ("5x", (1280, 960)): (3.8326 / 2) * lens_calibrations["5x"],
-            ("10x", (1280, 960)): (3.8326 / 2) * lens_calibrations["10x"],
-            ("20x", (1280, 960)): (3.8326 / 2) * lens_calibrations["20x"],
-            ("50x", (1280, 960)): (3.8326 / 2) * lens_calibrations["50x"],
-            ("100x", (1280, 960)): (3.8326 / 2) * lens_calibrations["100x"],
-
-            # --- 1280 x 720 - 2x binning ---
-            ("5x", (1280, 720)): (3.8326 / 2) * lens_calibrations["5x"],
-            ("10x", (1280, 720)): (3.8326 / 2) * lens_calibrations["10x"],
-            ("20x", (1280, 720)): (3.8326 / 2) * lens_calibrations["20x"],
-            ("50x", (1280, 720)): (3.8326 / 2) * lens_calibrations["50x"],
-            ("100x", (1280, 720)): (3.8326 / 2) * lens_calibrations["100x"],
-
-            # --- 640 x 480 - 4x binning ---
-            ("5x", (640, 480)): (3.8326 / 4) * lens_calibrations["5x"],
-            ("10x", (640, 480)): (3.8326 / 4) * lens_calibrations["10x"],
-            ("20x", (640, 480)): (3.8326 / 4) * lens_calibrations["20x"],
-            ("50x", (640, 480)): (3.8326 / 4) * lens_calibrations["50x"],
-            ("100x", (640, 480)): (3.8326 / 4) * lens_calibrations["100x"],
-            }
+            "5x":   None,   # ≈ 1.45 px/µm theoretical — needs micrometer
+            "10x":  None,   # ≈ 2.90 px/µm theoretical — needs micrometer
+            "20x":  None,   # ≈ 5.80 px/µm theoretical — needs micrometer
+            "50x":  None,   # ≈ 14.5 px/µm theoretical — needs micrometer
+            "100x": None,   # ≈ 29.0 px/µm theoretical — needs micrometer
+        }
 
         self.cap = create_camera_manager()
         self.native_width  = self.cap.native_width
@@ -197,27 +148,17 @@ class PreviewWindow(QWidget):
             pass
         return None
 
-    def get_scale_bar_pixels(self, magnification, resolution):
-        ppm = self.calibration_table.get((magnification, resolution), None)
-
+    def get_scale_bar_pixels(self, magnification):
+        """Return (bar_px, label_str, ppm) or None if uncalibrated."""
+        ppm = self.calibration_table.get(magnification)
         if ppm is None:
-            key = (magnification, resolution)
-            if key not in PreviewWindow._warned_calibrations:
-                print(f"[WARN] No calibration for magnification {magnification} at resolution {resolution}")
-                PreviewWindow._warned_calibrations.add(key)
+            if magnification not in PreviewWindow._warned_calibrations:
+                print(f"[WARN] No calibration for {magnification} — set ppm in calibration_table")
+                PreviewWindow._warned_calibrations.add(magnification)
             return None
 
-        # Fixed real-world length per magnification for display
-        bar_um = {
-            "5x": 200,
-            "10x": 100,
-            "20x": 50,
-            "50x": 20,
-            "100x": 5
-        }.get(magnification, 100)
-
-        px = int(ppm * bar_um)
-        return px, f"{bar_um} um", ppm
+        bar_um = {"5x": 200, "10x": 100, "20x": 50, "50x": 20, "100x": 5}.get(magnification, 100)
+        return int(ppm * bar_um), f"{bar_um} um", ppm
 
     def set_magnification(self, mag):
         self.magnification = mag
@@ -425,8 +366,7 @@ class PreviewWindow(QWidget):
         dpx = (px - ox) * sx - self.native_width  / 2.0
         dpy = (py - oy) * sy - self.native_height / 2.0
 
-        result = self.get_scale_bar_pixels(self.magnification,
-                                           (self.native_width, self.native_height))
+        result = self.get_scale_bar_pixels(self.magnification)
         if result is None:
             return
         _, _, ppm = result   # pixels per µm
@@ -502,7 +442,7 @@ class PreviewWindow(QWidget):
         draw = display.copy()
         disp_h, disp_w = draw.shape[:2]
 
-        sb = self.get_scale_bar_pixels(self.magnification, (orig_w, orig_h))
+        sb = self.get_scale_bar_pixels(self.magnification)
         if sb and self.show_scale_bar:
             bar_px, label, ppm = sb
             try:
@@ -524,7 +464,7 @@ class PreviewWindow(QWidget):
         cx_disp = disp_w // 2
         cy_disp = disp_h // 2
         if self.show_full_crosshair:
-            sb = self.get_scale_bar_pixels(self.magnification, (orig_w, orig_h))
+            sb = self.get_scale_bar_pixels(self.magnification)
             _ppm = sb[2] if sb else None
             self._draw_full_crosshair(draw, disp_w, disp_h, _ppm, sx)
         else:
@@ -556,17 +496,20 @@ class PreviewWindow(QWidget):
             dx_n = p2[0] - p1[0]
             dy_n = p2[1] - p1[1]
             dist_px = (dx_n**2 + dy_n**2)**0.5
-            _, _, ppm = self.get_scale_bar_pixels(self.magnification, (orig_w, orig_h))
-            dist_um = dist_px / ppm
             mid_x = int((p1[0]+p2[0])/(2*sx) + ox)
             mid_y = int((p1[1]+p2[1])/(2*sy) + oy)
             pt1_disp = (int(p1[0]/sx + ox), int(p1[1]/sy + oy))
             pt2_disp = (int(p2[0]/sx + ox), int(p2[1]/sy + oy))
             cv2.line(draw, pt1_disp, pt2_disp, (0,255,255), 1)
             angle = np.degrees(np.arctan2(dy_n, dx_n))
-            err = np.degrees(np.arctan2(1, dist_px)) if dist_px!=0 else 0
-            #print(f"[DEBUG] dist_px = {dist_px:.2f}, ppm = {ppm:.4f}, dist_um = {dist_um:.2f}")
-            cv2.putText(draw, f"{dist_px:.1f}px / {dist_um:.1f} um", (mid_x, mid_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+            err = np.degrees(np.arctan2(1, dist_px)) if dist_px != 0 else 0
+            sb = self.get_scale_bar_pixels(self.magnification)
+            if sb:
+                dist_um = dist_px / sb[2]
+                dist_label = f"{dist_px:.1f}px / {dist_um:.1f} \u00b5m"
+            else:
+                dist_label = f"{dist_px:.1f}px  (uncalibrated)"
+            cv2.putText(draw, dist_label, (mid_x, mid_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
             cv2.putText(draw, f"{angle:.2f} deg, error {err:.2f}", (mid_x, mid_y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
         self.last_output_frame = draw.copy()

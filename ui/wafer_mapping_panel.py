@@ -491,11 +491,10 @@ class WaferMappingPanel(QWidget):
 
     def _calculate_step_from_fov(self):
         mag = self.preview.magnification
-        res = (self.preview.native_width, self.preview.native_height)
-        result = self.preview.get_scale_bar_pixels(mag, res)
+        result = self.preview.get_scale_bar_pixels(mag)
         if result is None:
             self.fov_label.setText(
-                f"No calibration for {mag}× at {res[0]}×{res[1]} — enter step manually.")
+                f"No calibration for {mag}× — enter step manually.")
             return
         _, _, ppm = result      # pixels per µm
         fov_x_mm = res[0] / ppm / 1000.0
