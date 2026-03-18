@@ -38,6 +38,8 @@ from motors.factory import create_motor_manager
 from pixel_intensity_panel import PixelIntensityPanel
 from ui.autofocus_panel import AutoFocusPanel
 from ui.controls import ControlWindow
+from ui.edge_detection_panel import EdgeDetectionPanel
+from ui.file_save_panel import FileSavePanel
 from ui.flat_field_panel import FlatFieldPanel
 from ui.focus_map_panel import FocusMapPanel
 from ui.focus_panel import FocusPanel
@@ -122,6 +124,15 @@ class Application:
             self.preview, mm, self.stage_controls
         )
 
+        self.edge_detection_panel = EdgeDetectionPanel(
+            self.preview, mm,
+            wafer_mapping_panel=self.wafer_mapping_panel,
+        )
+
+        self.file_save_panel = FileSavePanel(
+            self.preview, mm, self.controls,
+        )
+
         self.gamepad_panel = GamepadPanel(
             self.stage_controls, self.controller,
             autofocus_panel=self.autofocus_panel,
@@ -143,6 +154,8 @@ class Application:
             pixel_panel=self.pixel_panel,
             layer_contrast_panel=self.layer_contrast_panel,
             flat_field_panel=self.flat_field_panel,
+            edge_detection_panel=self.edge_detection_panel,
+            file_save_panel=self.file_save_panel,
         )
 
     def run(self):

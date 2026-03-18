@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 
 _PRESETS_FILE = "focus_presets.json"
-_EXP_LOG_MAX = 5000  # max exposure in 100µs units (= 500 ms)
+_EXP_LOG_MAX = 10000  # max exposure in 100µs units (= 1000 ms)
 _OBJECTIVES = ["5x", "10x", "20x", "50x", "100x"]
 
 
@@ -82,10 +82,13 @@ class ControlWindow(QWidget):
             self._exp_slider.setEnabled(not enabled)
             controller.auto_exposure_changed.emit(enabled)
             if not enabled and preview.cap:
-                import cv2
-                current = preview.cap.get(cv2.CAP_PROP_EXPOSURE)
-                if current > 0:
-                    self._exp_slider.setValue(_pos_from_exp(round(current)))
+                # Read back actual exposure in µs; convert to 100µs units for slider
+                try:
+                    current_us = preview.cap.get_exposure_us()
+                    if current_us > 0:
+                        self._exp_slider.setValue(_pos_from_exp(round(current_us / 100)))
+                except Exception:
+                    pass
 
         auto_exp_check.stateChanged.connect(_on_auto_exposure)
         grid.addWidget(auto_exp_check, 3, 0, 1, 2)
@@ -169,16 +172,16 @@ class ControlWindow(QWidget):
         native_zoom_check.stateChanged.connect(lambda state: controller.native_zoom_toggled.emit(state == Qt.Checked))
         grid.addWidget(native_zoom_check, 14, 0, 1, 2)
 
+        self.status_label = QLabel("Resolution: ? x ?, FPS: ?")
+        grid.addWidget(self.status_label, 15, 0, 1, 2)
+
         save_view_button = QPushButton("Save View")
         save_view_button.clicked.connect(self.save_view)
-        grid.addWidget(save_view_button, 15, 0, 1, 2)
+        grid.addWidget(save_view_button, 16, 0, 1, 2)
 
         capture_frame_button = QPushButton("Capture Frame")
         capture_frame_button.clicked.connect(self.capture_frame)
-        grid.addWidget(capture_frame_button, 16, 0, 1, 2)
-
-        self.status_label = QLabel("Resolution: ? x ?, FPS: ?")
-        grid.addWidget(self.status_label, 15, 0, 1, 2)
+        grid.addWidget(capture_frame_button, 17, 0, 1, 2)
 
         layout.addLayout(grid)
         self.setLayout(layout)
@@ -237,9 +240,9 @@ class ControlWindow(QWidget):
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename, _ = QFileDialog.getSaveFileName(self, "Capture Frame", f"frame_{timestamp}.png", "PNG Files (*.png)")
         if filename:
-            ret, frame = self.preview.cap.read()
-            if ret:
-                import cv2
+            import cv2
+            frame = self.preview.get_frame()
+            if frame is not None:
                 cv2.imwrite(filename, frame)
 
     def update_status(self):

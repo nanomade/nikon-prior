@@ -30,7 +30,8 @@ class LauncherWindow(QWidget):
                  focus_panel=None, autofocus_panel=None, focus_map_panel=None,
                  wafer_mapping_panel=None, index_mark_panel=None,
                  gamepad_panel=None, pixel_panel=None,
-                 layer_contrast_panel=None, flat_field_panel=None):
+                 layer_contrast_panel=None, flat_field_panel=None,
+                 edge_detection_panel=None, file_save_panel=None):
         super().__init__()
         self.setWindowTitle("Launcher")
         self.setWindowFlags(self.windowFlags() | Qt.WindowStaysOnTopHint)
@@ -48,6 +49,8 @@ class LauncherWindow(QWidget):
         self.pixel_panel = pixel_panel
         self.layer_contrast_panel = layer_contrast_panel
         self.flat_field_panel = flat_field_panel
+        self.edge_detection_panel = edge_detection_panel
+        self.file_save_panel = file_save_panel
 
         layout = QVBoxLayout()
         layout.setSpacing(2)
@@ -60,6 +63,8 @@ class LauncherWindow(QWidget):
         layout.addWidget(_heading("IMAGING"))
         _btn("Open Preview",             self._open_preview)
         _btn("Open Imaging Controls",    self.controls.show)
+        if self.file_save_panel:
+            _btn("File Save",            self.file_save_panel.show)
         if self.layer_contrast_panel:
             _btn("Open Layer Contrast",  self.layer_contrast_panel.show)
         if self.flat_field_panel:
@@ -85,6 +90,8 @@ class LauncherWindow(QWidget):
 
         layout.addWidget(_separator())
         layout.addWidget(_heading("SAMPLE"))
+        if self.edge_detection_panel:
+            _btn("Find Wafer Extents",   self.edge_detection_panel.show)
         if self.wafer_mapping_panel:
             _btn("Open Wafer Mapping",   self.wafer_mapping_panel.show)
         if self.index_mark_panel:
@@ -123,6 +130,7 @@ class LauncherWindow(QWidget):
             self.focus_map_panel, self.wafer_mapping_panel,
             self.index_mark_panel, self.gamepad_panel, self.pixel_panel,
             self.layer_contrast_panel, self.flat_field_panel,
+            self.edge_detection_panel, self.file_save_panel,
         ]:
             if p is not None:
                 try:

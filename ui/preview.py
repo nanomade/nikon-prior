@@ -109,7 +109,9 @@ class PreviewWindow(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)
 
-        controller.exposure_changed.connect(lambda v: self.cap.set_exposure_us(v))
+        # controls.py emits exposure in 100µs units (1 unit = 100 µs = 0.1 ms).
+        # AlviumCameraManager.set_exposure_us() expects microseconds — multiply by 100.
+        controller.exposure_changed.connect(lambda v: self.cap.set_exposure_us(v * 100))
         controller.gain_changed.connect(lambda v: self.cap.set_gain_db(v))
         controller.auto_exposure_changed.connect(self._set_auto_exposure)
         controller.wb_temperature_changed.connect(self._set_wb_temperature)

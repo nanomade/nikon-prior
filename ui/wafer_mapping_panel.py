@@ -494,15 +494,17 @@ class WaferMappingPanel(QWidget):
         result = self.preview.get_scale_bar_pixels(mag)
         if result is None:
             self.fov_label.setText(
-                f"No calibration for {mag}× — enter step manually.")
+                f"No calibration for {mag} — enter step manually.")
             return
         _, _, ppm = result      # pixels per µm
-        fov_x_mm = res[0] / ppm / 1000.0
-        fov_y_mm = res[1] / ppm / 1000.0
+        w_px = getattr(self.preview, "native_width",  616)
+        h_px = getattr(self.preview, "native_height", 514)
+        fov_x_mm = w_px / ppm / 1000.0
+        fov_y_mm = h_px / ppm / 1000.0
         self.step_x_spin.setValue(round(fov_x_mm, 3))
         self.step_y_spin.setValue(round(fov_y_mm, 3))
         self.fov_label.setText(
-            f"FOV {fov_x_mm:.3f} × {fov_y_mm:.3f} mm  ({mag}×, {res[0]}×{res[1]})")
+            f"FOV {fov_x_mm:.3f} × {fov_y_mm:.3f} mm  ({mag}, {w_px}×{h_px})")
 
     # ── Scan control ───────────────────────────────────────────────────────
 

@@ -370,8 +370,8 @@ class StageControlWindow(QWidget):
         vel = self.z_velocity_slider.value()
         if vel == 0:
             return
-        # vel ∈ [-100, 100]: at max → 0.005 mm per 50 ms tick = 0.1 mm/s
-        step_mm = vel * 0.00005
+        # vel ∈ [-100, 100]: at max → 0.05 mm per 50 ms tick = 1.0 mm/s
+        step_mm = vel * 0.0005
         try:
             self.motor_manager.move_units("Z", step_mm, wait=False)
         except Exception as exc:
