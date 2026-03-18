@@ -743,10 +743,22 @@ class AutoFocusPanel(QWidget):
         self.thread = QThread()
         self.worker = FocusWorker(self.mm, get_frame, p)
         self.worker.moveToThread(self.thread)
+        # Let Qt delete the C++ worker object from the correct thread context;
+        # avoids "moveToThread: current thread is not the object's thread" warning
+        # that fires when Python's GC deletes it from the main thread.
+        self.thread.finished.connect(self.worker.deleteLater)
         self.thread.started.connect(self.worker.run)
         self.worker.progress.connect(self._on_progress)
         self.worker.finished.connect(self._on_finished)
         self.worker.aborted.connect(self._on_aborted)
+
+        # Pause Z velocity jogging so it doesn't fight the autofocus sweep
+        self._z_vel_timer_was_active = False
+        if self.stage_controls is not None:
+            t = getattr(self.stage_controls, '_z_vel_timer', None)
+            if t and t.isActive():
+                t.stop()
+                self._z_vel_timer_was_active = True
 
         # Live-plot dialog
         self._progress_dlg = AutoFocusProgressDialog(self)
@@ -772,8 +784,15 @@ class AutoFocusPanel(QWidget):
         if self.thread:
             self.thread.quit()
             self.thread.wait()
+        # Drop Python references; C++ deletion is handled by the
+        # thread.finished → worker.deleteLater connection set up in _start.
         self.thread = None
         self.worker = None
+        # Resume Z velocity jogging now that autofocus is done
+        if self.stage_controls is not None and getattr(self, '_z_vel_timer_was_active', False):
+            t = getattr(self.stage_controls, '_z_vel_timer', None)
+            if t:
+                t.start(50)
 
     def _on_finished(self, z_best, m_best):
         self.status.setText(f"Done. z={z_best:.4f} mm  metric={m_best:.1f}")
