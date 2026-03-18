@@ -135,11 +135,12 @@ class AlviumCameraManager:
 
         cam.get_feature_by_name("TriggerMode").set("Off")
 
-        # Pixel format: raw 8-bit Bayer (debayered in read())
+        # Request Rgb8: camera ISP handles demosaicing (no Bayer edge artefacts).
+        # Fall back to BayerRG8 if Rgb8 is not available.
         try:
-            cam.get_feature_by_name("PixelFormat").set("BayerRG8")
-        except Exception:
             cam.get_feature_by_name("PixelFormat").set("Rgb8")
+        except Exception:
+            cam.get_feature_by_name("PixelFormat").set("BayerRG8")
 
         self._apply_live_resolution(cam, self._live_factor)
 
@@ -149,7 +150,7 @@ class AlviumCameraManager:
             cam.start_streaming(self._frame_callback, buffer_count=10)
             self._streaming = True
             logger.info(
-                "Live mode: %dx%d BayerRG8 streaming (factor=%d)",
+                "Live mode: %dx%d streaming (factor=%d)",
                 self.native_width, self.native_height, self._live_factor,
             )
         except Exception as exc:
@@ -309,13 +310,14 @@ class AlviumCameraManager:
         fmt = frame.get_pixel_format()
 
         if fmt == vmbpy.PixelFormat.BayerRG8:
-            bgr = cv2.cvtColor(raw, cv2.COLOR_BayerBG2BGR)
+            # BayerRG8 = RGGB; use edge-aware demosaicing to reduce colour fringing
+            bgr = cv2.cvtColor(raw, cv2.COLOR_BayerRG2BGR_EA)
             return bgr
 
         elif fmt == vmbpy.PixelFormat.BayerRG12:
             # raw arrives as uint16 with values in [0, 4095]
             # Debayer at 16-bit then scale to full uint16 range for consistency
-            bgr16 = cv2.cvtColor(raw, cv2.COLOR_BayerBG2BGR)
+            bgr16 = cv2.cvtColor(raw, cv2.COLOR_BayerRG2BGR)
             bgr16 = (bgr16 * 16).astype(np.uint16)   # 12-bit → 16-bit
             return bgr16
 
