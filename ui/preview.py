@@ -128,6 +128,7 @@ class PreviewWindow(QWidget):
         self.show_scale_bar = True
         self.magnification = "5x"
         self.native_zoom = False
+        self._binning_factor = 1
 
     def track_mouse(self, event: QMouseEvent):
         self.last_mouse_pos = event.pos()
@@ -150,7 +151,11 @@ class PreviewWindow(QWidget):
         return None
 
     def get_scale_bar_pixels(self, magnification):
-        """Return (bar_px, label_str, ppm) or None if uncalibrated."""
+        """Return (bar_px, label_str, ppm) or None if uncalibrated.
+
+        ppm is adjusted for the current binning factor: a 2× binned pixel
+        covers 2× the physical area, so there are half as many pixels per µm.
+        """
         ppm = self.calibration_table.get(magnification)
         if ppm is None:
             if magnification not in PreviewWindow._warned_calibrations:
@@ -158,6 +163,7 @@ class PreviewWindow(QWidget):
                 PreviewWindow._warned_calibrations.add(magnification)
             return None
 
+        ppm = ppm / self._binning_factor
         bar_um = {"5x": 200, "10x": 100, "20x": 50, "50x": 20, "100x": 5}.get(magnification, 100)
         return int(ppm * bar_um), f"{bar_um} um", ppm
 
@@ -301,6 +307,7 @@ class PreviewWindow(QWidget):
         self.adjustSize()
 
     def _on_binning_changed(self, factor: int):
+        self._binning_factor = factor
         self.cap.set_live_binning(factor)
         self.native_width  = self.cap.native_width
         self.native_height = self.cap.native_height

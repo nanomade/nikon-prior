@@ -243,11 +243,17 @@ class AlviumCameraManager:
 
         # Fall back to binning
         try:
+            for feat, val in (("BinningHorizontalMode", "Average"),
+                               ("BinningVerticalMode",   "Average")):
+                try:
+                    cam.get_feature_by_name(feat).set(val)
+                except Exception:
+                    pass   # feature absent on this camera; sum mode is the hardware default
             cam.get_feature_by_name("BinningHorizontal").set(factor)
             cam.get_feature_by_name("BinningVertical").set(factor)
             self.native_width  = SENSOR_WIDTH  // factor
             self.native_height = SENSOR_HEIGHT // factor
-            logger.info("Binning %dx applied for live preview", factor)
+            logger.info("Binning %dx (average mode) applied for live preview", factor)
             return
         except Exception:
             logger.warning("Binning %dx not supported either — full resolution", factor)
