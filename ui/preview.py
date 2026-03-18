@@ -122,6 +122,7 @@ class PreviewWindow(QWidget):
         controller.full_crosshair_changed.connect(self.set_full_crosshair)
         controller.hud_changed.connect(self.set_hud)
         controller.native_zoom_toggled.connect(self.set_native_zoom)
+        controller.binning_changed.connect(self._on_binning_changed)
 
         self.scale_bar_color = "White"
         self.show_scale_bar = True
@@ -219,7 +220,7 @@ class PreviewWindow(QWidget):
                 cv2.line(draw, (px, cy - arm), (px, cy + arm), tick_color, 1)
                 if major:
                     um = abs(int(round((px - cx) / ppm_disp)))
-                    lbl = f"{um}\u00b5m"
+                    lbl = f"{um}um"
                     (tw, th), _ = cv2.getTextSize(lbl, font, fs, ft)
                     cv2.putText(draw, lbl, (px - tw // 2, cy + arm + th + 2),
                                 font, fs, tick_color, ft)
@@ -227,7 +228,7 @@ class PreviewWindow(QWidget):
                 cv2.line(draw, (cx - arm, py), (cx + arm, py), tick_color, 1)
                 if major:
                     um = abs(int(round((py - cy) / ppm_disp)))
-                    lbl = f"{um}\u00b5m"
+                    lbl = f"{um}um"
                     (tw, th), _ = cv2.getTextSize(lbl, font, fs, ft)
                     cv2.putText(draw, lbl, (cx + arm + 3, py + th // 2),
                                 font, fs, tick_color, ft)
@@ -298,6 +299,14 @@ class PreviewWindow(QWidget):
         self.native_zoom = flag
         self.image_label.setFixedSize(self.native_width, self.native_height)
         self.adjustSize()
+
+    def _on_binning_changed(self, factor: int):
+        self.cap.set_live_binning(factor)
+        self.native_width  = self.cap.native_width
+        self.native_height = self.cap.native_height
+        if self.native_zoom:
+            self.image_label.setFixedSize(self.native_width, self.native_height)
+            self.adjustSize()
 
     def _set_auto_exposure(self, enabled):
         self.cap.set_auto_exposure(enabled)
@@ -498,7 +507,7 @@ class PreviewWindow(QWidget):
             sb = self.get_scale_bar_pixels(self.magnification)
             if sb:
                 dist_um = dist_px / sb[2]
-                dist_label = f"{dist_px:.1f}px / {dist_um:.1f} \u00b5m"
+                dist_label = f"{dist_px:.1f}px / {dist_um:.1f} um"
             else:
                 dist_label = f"{dist_px:.1f}px  (uncalibrated)"
             cv2.putText(draw, dist_label, (mid_x, mid_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
