@@ -29,11 +29,11 @@ class PreviewWindow(QWidget):
         # Set a magnification to None to mark it as uncalibrated — the measure
         # tool will then show distances in pixels only.
         self.calibration_table = {
-            "5x":   None,   # ≈ 1.45 px/µm theoretical — needs micrometer
-            "10x":  None,   # ≈ 2.90 px/µm theoretical — needs micrometer
-            "20x":  None,   # ≈ 5.80 px/µm theoretical — needs micrometer
-            "50x":  None,   # ≈ 14.5 px/µm theoretical — needs micrometer
-            "100x": None,   # ≈ 29.0 px/µm theoretical — needs micrometer
+            "5x":   None,        # needs micrometer
+            "10x":  2.03,        # measured 2026-03-18 on nikon-257 with stage micrometer
+            "20x":  None,        # needs micrometer
+            "50x":  None,        # needs micrometer
+            "100x": None,        # needs micrometer
         }
 
         self.cap = create_camera_manager()
