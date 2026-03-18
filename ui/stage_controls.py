@@ -12,63 +12,40 @@ import os
 import cv2
 import numpy as np
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QColor, QFont, QImage, QPainter, QPixmap
+from PyQt5.QtGui import QFont, QImage, QPixmap
 from PyQt5.QtWidgets import (
     QCheckBox, QFileDialog, QHBoxLayout, QLabel, QPushButton,
     QSlider, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
 )
 
-# Slider units are µm.  Ranges match Prior H116/2 (255×215 mm) + PS3H122 Z drive.
-_X_RANGE_UM = 127_500  # ±127.5 mm  (255 mm total travel)
-_Y_RANGE_UM = 107_500  # ±107.5 mm  (215 mm total travel)
-_Z_RANGE_UM = 25_000   # 0 – 25 mm
-
 _UM_PER_MM = 1000.0    # slider value × this factor = mm when dividing
 
+# Fallback limits (mm) used if step_config lacks min_mm/max_mm.
+_X_MIN_MM_DEFAULT = -127.5
+_X_MAX_MM_DEFAULT =  127.5
+_Y_MIN_MM_DEFAULT = -107.5
+_Y_MAX_MM_DEFAULT =  107.5
 
-class DetentSlider(QSlider):
-    """Vertical slider that draws small labelled arrows at preset detent positions."""
 
-    def __init__(self, orientation, parent=None):
-        super().__init__(orientation, parent)
-        self._detent_groups = {}
-        self.setMinimumWidth(72)
 
-    @property
-    def _detents(self):
-        merged = {}
-        for g in self._detent_groups.values():
-            merged.update(g)
-        return merged
+class ZVelocitySlider(QSlider):
+    """Vertical slider that springs back to 0 on mouse release.
 
-    def set_detents(self, detents: dict, group: str = "default"):
-        self._detent_groups[group] = dict(detents)
-        self.update()
+    Used for Z fine-focus velocity control: position encodes speed, not
+    absolute position.  The stage_controls timer reads the value every 50 ms
+    and issues a proportional relative Z move.
+    """
 
-    def clear_detents(self, group: str = "default"):
-        self._detent_groups.pop(group, None)
-        self.update()
+    def __init__(self, parent=None):
+        super().__init__(Qt.Vertical, parent)
+        self.setRange(-100, 100)
+        self.setValue(0)
+        self.setTickPosition(QSlider.TicksBothSides)
+        self.setTickInterval(25)
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
-        detents = self._detents
-        if not detents:
-            return
-        rng = self.maximum() - self.minimum()
-        if rng == 0:
-            return
-        painter = QPainter(self)
-        font = QFont("Arial", 10)
-        painter.setFont(font)
-        fm = painter.fontMetrics()
-        h, w = self.height(), self.width()
-        for val, label in detents.items():
-            frac = 1.0 - (val - self.minimum()) / rng
-            yp = int(frac * (h - 4) + 2)
-            painter.setPen(QColor(30, 100, 210))
-            painter.drawLine(w - 58, yp, w - 46, yp)
-            painter.drawText(w - 45, yp + fm.ascent() // 2, f"\u25b6 {label}")
-        painter.end()
+    def mouseReleaseEvent(self, event):
+        super().mouseReleaseEvent(event)
+        self.setValue(0)
 
 
 class InteractiveStageDisplay(QLabel):
@@ -80,13 +57,15 @@ class InteractiveStageDisplay(QLabel):
         self.dragging = False
         self.setMouseTracking(True)
 
-    def _pixel_to_slider(self, pos):
+    def _pixel_to_mm(self, pos):
         w, h = self.width(), self.height()
         if not w or not h:
             return None, None
-        x_val = int(pos.x() / w * 2 * _X_RANGE_UM - _X_RANGE_UM)
-        y_val = int((1.0 - pos.y() / h) * 2 * _Y_RANGE_UM - _Y_RANGE_UM)
-        return x_val, y_val
+        x_travel = self.sc._x_max_um - self.sc._x_min_um
+        y_travel = self.sc._y_max_um - self.sc._y_min_um
+        x_mm = (pos.x() / w * x_travel + self.sc._x_min_um) / _UM_PER_MM
+        y_mm = ((1.0 - pos.y() / h) * y_travel + self.sc._y_min_um) / _UM_PER_MM
+        return x_mm, y_mm
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -105,11 +84,21 @@ class InteractiveStageDisplay(QLabel):
         self._apply(event)
 
     def _apply(self, event):
-        x_val, y_val = self._pixel_to_slider(event.pos())
-        if x_val is None:
+        x_mm, y_mm = self._pixel_to_mm(event.pos())
+        if x_mm is None:
             return
-        self.sc.stage_x_slider.setValue(x_val)
-        self.sc.stage_y_slider.setValue(y_val)
+        # Clamp to stage travel limits
+        x_mm = max(self.sc._x_min_um / _UM_PER_MM, min(self.sc._x_max_um / _UM_PER_MM, x_mm))
+        y_mm = max(self.sc._y_min_um / _UM_PER_MM, min(self.sc._y_max_um / _UM_PER_MM, y_mm))
+        # Update slider display without triggering individual motor moves
+        self.sc.stage_x_slider.blockSignals(True)
+        self.sc.stage_y_slider.blockSignals(True)
+        self.sc.stage_x_slider.setValue(int(round(x_mm * _UM_PER_MM)))
+        self.sc.stage_y_slider.setValue(int(round(y_mm * _UM_PER_MM)))
+        self.sc.stage_x_slider.blockSignals(False)
+        self.sc.stage_y_slider.blockSignals(False)
+        # Single combined XY move — avoids axis desync from two separate commands
+        self.sc._move_xy(x_mm, y_mm)
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +123,7 @@ class StageControlWindow(QWidget):
         self.position_manager = None  # injected after construction
         self.focus_panel = None       # injected after construction
 
+        self._init_axis_limits()
         self._build_ui()
         self._sync_sliders_to_motors()
         self.update_all_displays()
@@ -141,6 +131,23 @@ class StageControlWindow(QWidget):
         self._mini_update_timer = QTimer(self)
         self._mini_update_timer.timeout.connect(self.update_all_displays)
         self._mini_update_timer.start(200)
+
+        self._z_vel_timer = QTimer(self)
+        self._z_vel_timer.timeout.connect(self._z_velocity_step)
+        self._z_vel_timer.start(50)
+
+    # ------------------------------------------------------------------
+    # Axis limits (read from step_config via motor_manager)
+    # ------------------------------------------------------------------
+
+    def _init_axis_limits(self):
+        cfg = getattr(self.motor_manager, "step_config", {})
+        x = cfg.get("X", {})
+        y = cfg.get("Y", {})
+        self._x_min_um = int(x.get("min_mm", _X_MIN_MM_DEFAULT) * _UM_PER_MM)
+        self._x_max_um = int(x.get("max_mm", _X_MAX_MM_DEFAULT) * _UM_PER_MM)
+        self._y_min_um = int(y.get("min_mm", _Y_MIN_MM_DEFAULT) * _UM_PER_MM)
+        self._y_max_um = int(y.get("max_mm", _Y_MAX_MM_DEFAULT) * _UM_PER_MM)
 
     # ------------------------------------------------------------------
     # UI construction
@@ -155,18 +162,23 @@ class StageControlWindow(QWidget):
 
         display_row = QHBoxLayout()
         self.stage_y_slider = QSlider(Qt.Vertical)
-        self.stage_y_slider.setRange(-_Y_RANGE_UM, _Y_RANGE_UM)
+        self.stage_y_slider.setRange(self._y_min_um, self._y_max_um)
         display_row.addWidget(self.stage_y_slider)
 
+        # Size map to correct stage aspect ratio
+        x_travel = self._x_max_um - self._x_min_um
+        y_travel = self._y_max_um - self._y_min_um
+        map_w = 500
+        map_h = max(100, int(round(map_w * y_travel / x_travel)))
         self.stage_display = InteractiveStageDisplay(self)
-        self.stage_display.setFixedSize(500, 500)
+        self.stage_display.setFixedSize(map_w, map_h)
         display_row.addWidget(self.stage_display)
         xy_panel.addLayout(display_row)
 
         x_row = QHBoxLayout()
         x_row.addWidget(QLabel("X"))
         self.stage_x_slider = QSlider(Qt.Horizontal)
-        self.stage_x_slider.setRange(-_X_RANGE_UM, _X_RANGE_UM)
+        self.stage_x_slider.setRange(self._x_min_um, self._x_max_um)
         x_row.addWidget(self.stage_x_slider)
         xy_panel.addLayout(x_row)
 
@@ -188,33 +200,39 @@ class StageControlWindow(QWidget):
         # ---- Z panel ----
         z_panel = QVBoxLayout()
         z_panel.setAlignment(Qt.AlignHCenter)
-        z_panel.addWidget(QLabel("Z focus (µm)"))
+        z_panel.addWidget(QLabel("Z fine focus"))
 
         z_plus_btn = QPushButton("Z+")
         z_plus_btn.clicked.connect(lambda: self.jog_axis("Z", 10))
         z_panel.addWidget(z_plus_btn)
 
-        self.focus_z_slider = DetentSlider(Qt.Vertical)
-        self.focus_z_slider.setRange(0, _Z_RANGE_UM)
-        self.focus_z_slider.setTickPosition(QSlider.TicksLeft)
-        self.focus_z_slider.setTickInterval(1000)
-        z_panel.addWidget(self.focus_z_slider)
+        self.z_velocity_slider = ZVelocitySlider()
+        self.z_velocity_slider.setToolTip(
+            "Hold to move fine focus.  Drag toward + to focus up, - to focus down.\n"
+            "Releases back to centre on mouse-up."
+        )
+        z_panel.addWidget(self.z_velocity_slider)
 
         z_minus_btn = QPushButton("Z-")
         z_minus_btn.clicked.connect(lambda: self.jog_axis("Z", -10))
         z_panel.addWidget(z_minus_btn)
+
+        self.z_pos_label = QLabel("Z: 0.0000 mm")
+        self.z_pos_label.setAlignment(Qt.AlignCenter)
+        z_panel.addWidget(self.z_pos_label)
+
         main_layout.addLayout(z_panel)
 
         # ---- Full layout ----
         full_layout = QVBoxLayout()
         full_layout.addLayout(main_layout)
 
-        self.value_display = QLabel("Setpoint: X: 0 µm,  Y: 0 µm,  Z: 0 µm")
+        self.value_display = QLabel("Setpoint: X: 0 µm,  Y: 0 µm")
         self.value_display.setAlignment(Qt.AlignCenter)
         self.value_display.setFont(QFont("Arial", 11, QFont.Bold))
         full_layout.addWidget(self.value_display)
 
-        self.unit_display = QLabel("Motor position: X: N/A,  Y: N/A,  Z: N/A")
+        self.unit_display = QLabel("Motor: X: N/A,  Y: N/A,  Z: N/A (rel)")
         self.unit_display.setAlignment(Qt.AlignCenter)
         self.unit_display.setFont(QFont("Arial", 11))
         full_layout.addWidget(self.unit_display)
@@ -232,20 +250,17 @@ class StageControlWindow(QWidget):
         self.setLayout(full_layout)
 
         # Wire sliders
-        for slider in (self.stage_x_slider, self.stage_y_slider):
-            slider.valueChanged.connect(self.update_all_displays)
+        self.stage_x_slider.valueChanged.connect(self.update_all_displays)
+        self.stage_y_slider.valueChanged.connect(self.update_all_displays)
         self.stage_x_slider.valueChanged.connect(lambda v: self._slider_moved("X", v))
         self.stage_y_slider.valueChanged.connect(lambda v: self._slider_moved("Y", v))
-        self.focus_z_slider.valueChanged.connect(lambda v: self._slider_moved("Z", v))
 
     # ------------------------------------------------------------------
     # Sync motor → sliders
     # ------------------------------------------------------------------
 
     def _sync_sliders_to_motors(self):
-        for axis, slider in [("X", self.stage_x_slider),
-                              ("Y", self.stage_y_slider),
-                              ("Z", self.focus_z_slider)]:
+        for axis, slider in [("X", self.stage_x_slider), ("Y", self.stage_y_slider)]:
             try:
                 pos_mm = self.motor_manager.get_position_units(axis)
                 if pos_mm is not None:
@@ -263,9 +278,8 @@ class StageControlWindow(QWidget):
         # Readout labels
         x_um = self.stage_x_slider.value()
         y_um = self.stage_y_slider.value()
-        z_um = self.focus_z_slider.value()
         self.value_display.setText(
-            f"Setpoint:  X: {x_um} µm    Y: {y_um} µm    Z: {z_um} µm"
+            f"Setpoint:  X: {x_um} µm    Y: {y_um} µm"
         )
 
         def _fmt(val, unit):
@@ -279,8 +293,9 @@ class StageControlWindow(QWidget):
             my = self.motor_manager.get_position_units("Y")
             mz = self.motor_manager.get_position_units("Z")
             self.unit_display.setText(
-                f"Motor:  X: {_fmt(mx, 'mm')}    Y: {_fmt(my, 'mm')}    Z: {_fmt(mz, 'mm')}"
+                f"Motor:  X: {_fmt(mx, 'mm')}    Y: {_fmt(my, 'mm')}    Z: {_fmt(mz, 'mm')} (rel)"
             )
+            self.z_pos_label.setText(f"Z: {_fmt(mz, 'mm')} (rel)")
         except Exception:
             pass
 
@@ -294,15 +309,21 @@ class StageControlWindow(QWidget):
         for j in range(0, h, h // 10):
             img[j, :] = [200, 200, 200]
 
+        x_travel = self._x_max_um - self._x_min_um
+        y_travel = self._y_max_um - self._y_min_um
+
+        def _um_to_px(x_um_, y_um_):
+            px = int((x_um_ - self._x_min_um) / x_travel * w)
+            py = int((1.0 - (y_um_ - self._y_min_um) / y_travel) * h)
+            return px, py
+
         # Breadcrumb thumbnails + labels
         if self.position_manager:
             for pos in self.position_manager.positions:
                 thumb = pos.get("Thumbnail")
                 if thumb is None:
                     continue
-                # Slider value (µm) → pixel on display
-                px_x = int((pos["X"] + _X_RANGE_UM) / (2 * _X_RANGE_UM) * w)
-                px_y = int((1.0 - (pos["Y"] + _Y_RANGE_UM) / (2 * _Y_RANGE_UM)) * h)
+                px_x, px_y = _um_to_px(pos["X"], pos["Y"])
                 hm, wm = thumb.shape[:2]
                 x0 = int(np.clip(px_x - wm // 2, 0, w - wm))
                 y0 = int(np.clip(px_y - hm // 2, 0, h - hm))
@@ -317,38 +338,56 @@ class StageControlWindow(QWidget):
                     cv2.putText(img, label, (lx, ly), font, scale, (255, 255, 255), thick)
 
         # Current position dot
-        cx = int((x_um + _X_RANGE_UM) / (2 * _X_RANGE_UM) * w)
-        cy = int((1.0 - (y_um + _Y_RANGE_UM) / (2 * _Y_RANGE_UM)) * h)
+        cx, cy = _um_to_px(x_um, y_um)
         cv2.circle(img, (cx, cy), 6, (0, 180, 0), -1)
         cv2.circle(img, (cx, cy), 6, (0, 0, 0), 1)
 
         qimg = QImage(img.data, w, h, 3 * w, QImage.Format_RGB888)
         self.stage_display.setPixmap(QPixmap.fromImage(qimg))
 
-        # Push Z detents from focus panel
-        if self.focus_panel is not None and hasattr(self.focus_panel, "get_detents"):
-            self.focus_z_slider.set_detents(
-                self.focus_panel.get_detents(), group="objectives"
-            )
 
     # ------------------------------------------------------------------
     # Motor control
     # ------------------------------------------------------------------
 
     def _slider_moved(self, axis: str, value_um: int):
-        """Called when a slider moves — drives motor to the new position."""
+        """Called when an XY slider moves — drives motor to the new position."""
         try:
             self.motor_manager.move_absolute_units(axis, value_um / _UM_PER_MM,
                                                     wait=False)
         except Exception as exc:
             print(f"[StageControls] {axis} move error: {exc}")
 
+    def _move_xy(self, x_mm: float, y_mm: float):
+        """Send a single combined XY move — prevents axis desync."""
+        try:
+            self.motor_manager.move_absolute_xy_units(x_mm, y_mm, wait=False)
+        except Exception as exc:
+            print(f"[StageControls] XY move error: {exc}")
+
+    def _z_velocity_step(self):
+        """Fired every 50 ms by the Z velocity timer; moves Z relative to slider value."""
+        vel = self.z_velocity_slider.value()
+        if vel == 0:
+            return
+        # vel ∈ [-100, 100]: at max → 0.005 mm per 50 ms tick = 0.1 mm/s
+        step_mm = vel * 0.00005
+        try:
+            self.motor_manager.move_units("Z", step_mm, wait=False)
+        except Exception as exc:
+            print(f"[StageControls] Z velocity error: {exc}")
+
     def jog_axis(self, axis: str, steps_um: int):
-        """Jog axis by steps_um µm (positive = positive direction)."""
-        sliders = {"X": self.stage_x_slider, "Y": self.stage_y_slider,
-                   "Z": self.focus_z_slider}
-        if axis in sliders:
-            sliders[axis].setValue(sliders[axis].value() + steps_um)
+        """Jog axis by steps_um µm. XY via slider; Z via direct relative move."""
+        if axis == "Z":
+            try:
+                self.motor_manager.move_units("Z", steps_um / _UM_PER_MM, wait=False)
+            except Exception as exc:
+                print(f"[StageControls] Z jog error: {exc}")
+        else:
+            sliders = {"X": self.stage_x_slider, "Y": self.stage_y_slider}
+            if axis in sliders:
+                sliders[axis].setValue(sliders[axis].value() + steps_um)
 
     def _zero_here(self):
         """Tell the ProScan III that the current position is the origin."""
@@ -356,26 +395,20 @@ class StageControlWindow(QWidget):
             self.motor_manager.home()
         except Exception as exc:
             print(f"[StageControls] zero error: {exc}")
-        for slider in (self.stage_x_slider, self.stage_y_slider, self.focus_z_slider):
+        for slider in (self.stage_x_slider, self.stage_y_slider):
             slider.blockSignals(True)
             slider.setValue(0)
             slider.blockSignals(False)
         self.update_all_displays()
 
     def goto_zero(self):
-        for slider in (self.stage_x_slider, self.stage_y_slider, self.focus_z_slider):
-            slider.setValue(0)
-
-    def _snap_to_nearest_preset(self):
-        """Snap focus_z_slider to the nearest objective preset (called by focus_panel)."""
-        if self.focus_panel is None:
-            return
-        detents = self.focus_panel.get_detents() if hasattr(self.focus_panel, "get_detents") else {}
-        if not detents:
-            return
-        cur = self.focus_z_slider.value()
-        nearest = min(detents, key=lambda v: abs(v - cur))
-        self.focus_z_slider.setValue(nearest)
+        """Move XY to origin; Z returns to its last-zeroed position."""
+        self.stage_x_slider.setValue(0)
+        self.stage_y_slider.setValue(0)
+        try:
+            self.motor_manager.move_absolute_units("Z", 0.0, wait=False)
+        except Exception as exc:
+            print(f"[StageControls] goto_zero Z error: {exc}")
 
     # ------------------------------------------------------------------
     # Keyboard jog
@@ -404,8 +437,10 @@ class StageControlWindow(QWidget):
     # ------------------------------------------------------------------
 
     def closeEvent(self, event):
-        if hasattr(self, "_mini_update_timer"):
-            self._mini_update_timer.stop()
+        for attr in ("_mini_update_timer", "_z_vel_timer"):
+            timer = getattr(self, attr, None)
+            if timer:
+                timer.stop()
         try:
             self.motor_manager.close()
         except Exception:
@@ -457,17 +492,25 @@ class PositionManagerWindow(QWidget):
 
     def _get_stage_values(self) -> dict:
         sc = self.stage_controls
+        try:
+            z_mm = sc.motor_manager.get_position_units("Z") or 0.0
+        except Exception:
+            z_mm = 0.0
         return {
             "X": sc.stage_x_slider.value(),
             "Y": sc.stage_y_slider.value(),
-            "Z": sc.focus_z_slider.value(),
+            "Z": int(round(z_mm * 1000)),  # store as µm for table display
         }
 
     def _set_stage_values(self, pos: dict):
         sc = self.stage_controls
         sc.stage_x_slider.setValue(pos["X"])
         sc.stage_y_slider.setValue(pos["Y"])
-        sc.focus_z_slider.setValue(pos["Z"])
+        # Z is relative; recalling a saved position means going to that Z
+        try:
+            sc.motor_manager.move_absolute_units("Z", pos.get("Z", 0) / 1000.0, wait=False)
+        except Exception:
+            pass
 
     def save_current_position(self):
         row = self.table.currentRow()

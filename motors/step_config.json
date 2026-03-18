@@ -1,6 +1,6 @@
 {
-  "_comment": "Prior ProScan III calibration. step = mm per encoder count. Adjust invert to match physical stage direction. Default: 0.0001 mm/count (0.1 µm, Prior standard). Verify with a stage micrometer.",
-  "X": {"step": 0.0001, "invert":  1, "unit": "mm", "min_mm": -127.5, "max_mm": 127.5},
-  "Y": {"step": 0.0001, "invert": -1, "unit": "mm", "min_mm": -107.5, "max_mm": 107.5},
-  "Z": {"step": 0.0001, "invert":  1, "unit": "mm", "min_mm":    0.0, "max_mm":  25.0}
+  "_comment": "Prior ProScan III calibration. step = mm per encoder count. Adjust invert to match physical stage direction. Verified 2026-03-17 on nikon-257.",
+  "X": {"step": 0.001, "invert":  1, "unit": "mm", "min_mm": -127.5, "max_mm": 127.5},
+  "Y": {"step": 0.001, "invert":  1, "unit": "mm", "min_mm": -107.5, "max_mm": 107.5},
+  "Z": {"step": 0.000025, "invert": -1, "unit": "mm", "min_mm":    0.0, "max_mm":  25.0}
 }

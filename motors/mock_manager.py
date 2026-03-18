@@ -51,10 +51,14 @@ class MockMotorManager:
         step_size = self.step_config.get(axis, {}).get("step", 1.0)
         self.move(axis, delta_physical / step_size)
 
-    def move_absolute_units(self, axis: str, target_physical: float):
+    def move_absolute_units(self, axis: str, target_physical: float, wait: bool = True):
         step_size = self.step_config.get(axis, {}).get("step", 1.0)
         factor = self.step_config.get(axis, {}).get("invert", 1)
         self._positions_steps[axis] = int(round(target_physical / step_size * factor))
+
+    def move_absolute_xy_units(self, x_mm: float, y_mm: float, wait: bool = False):
+        self.move_absolute_units("X", x_mm)
+        self.move_absolute_units("Y", y_mm)
 
     def home(self, axis: str):
         self._positions_steps[axis] = 0

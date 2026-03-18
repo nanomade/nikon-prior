@@ -84,22 +84,16 @@ class FocusWorker(QObject):
         else:
             return float(gray.var())
 
-    def _z_to_steps(self, z_mm):
-        return int(round(z_mm / self.p['z_step_mm']))
-
     def _get_z_mm(self):
-        pos = self.mm.get_position('Z')
-        if pos is None:
+        try:
+            return self.mm.get_position_units('Z')
+        except Exception:
             return None
-        hw = getattr(pos, 'Position', None)
-        if hw is None:
-            return None
-        return hw * self.p['z_invert'] * self.p['z_step_mm']
 
     def _move(self, z_mm):
         z_min, z_max = self.p['z_min_mm'], self.p['z_max_mm']
         z_mm = max(z_min, min(z_mm, z_max))
-        self.mm.move_absolute('Z', self._z_to_steps(z_mm))
+        self.mm.move_absolute_units('Z', z_mm, wait=False)
         t0 = time.time()
         tol = self.p['z_step_mm'] * 1.5
         while time.time() - t0 < 3.0:
@@ -709,20 +703,18 @@ class AutoFocusPanel(QWidget):
         if self.thread is not None:
             return
 
-        z_cfg = self.mm.step_config.get('Z', {})
-        z_step_mm = z_cfg.get('step', 0.001)
-        z_invert  = z_cfg.get('invert', 1)
+        z_cfg     = self.mm.step_config.get('Z', {})
+        z_step_mm = z_cfg.get('step', 0.000025)
 
-        pos = self.mm.get_position('Z')
-        hw  = getattr(pos, 'Position', 0) if pos is not None else 0
-        z0  = hw * z_invert * z_step_mm
+        z0 = self.mm.get_position_units('Z') or 0.0
         self._start_z = z0
 
-        # Stage hard limits — only used to clamp _move() against physical travel.
-        # The coarse scan uses z_range_mm as a per-direction step budget instead
-        # of a symmetric soft window, so focus is never "outside the range".
-        z_min = float(z_cfg.get('min_mm', 0.0))
-        z_max = float(z_cfg.get('max_mm', 25.0))
+        # Z is a relative axis — step_config min/max are meaningless here.
+        # Use a generous ±margin so _move() clamping never clips the scan;
+        # z_range_mm already limits how far the search actually travels.
+        z_range_budget = self.z_range.value() * 3
+        z_min = z0 - z_range_budget
+        z_max = z0 + z_range_budget
 
         mag = self._current_mag()
         last_focus_z = self._defaults_for_mag(mag).get('last_focus_z') if mag > 0 else None
@@ -737,11 +729,10 @@ class AutoFocusPanel(QWidget):
             'z_range_mm':    self.z_range.value(),
             'trend_n':  int(self.trend_n.value()),
             'n_avg':    int(self.n_avg.value()),
-            'last_focus_z':        last_focus_z,
+            'last_focus_z':  last_focus_z,
             'z_min_mm':      z_min,
             'z_max_mm':      z_max,
             'z_step_mm':     z_step_mm,
-            'z_invert':      z_invert,
         }
 
         get_frame = getattr(self.preview, "get_frame", None)

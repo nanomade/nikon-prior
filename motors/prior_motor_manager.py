@@ -181,13 +181,18 @@ class PriorMotorManager:
                                y: int | None = None,
                                z: int | None = None,
                                wait: bool = True):
-        """Send G or T command for absolute moves in counts."""
+        """Send G command for absolute moves in counts."""
         if x is None:
             x = self._pos["X"]
         if y is None:
             y = self._pos["Y"]
         if z is None:
             z = self._pos["Z"]
+        # Optimistically update cache so back-to-back no-wait moves don't
+        # revert each other (Y move would otherwise use stale X from cache).
+        self._pos["X"] = x
+        self._pos["Y"] = y
+        self._pos["Z"] = z
         self._send(f"G {x},{y},{z}")
         if wait:
             self._wait_idle()
@@ -241,6 +246,14 @@ class PriorMotorManager:
         invert = cfg.get("invert", 1)
         counts = int(round(pos_mm / step * invert))
         self.move_absolute(ax, counts, wait=wait)
+
+    def move_absolute_xy_units(self, x_mm: float, y_mm: float, wait: bool = False):
+        """Combined XY absolute move in mm — single G command to avoid axis desync."""
+        x_cfg = self.step_config.get("X", {})
+        y_cfg = self.step_config.get("Y", {})
+        x_counts = int(round(x_mm / x_cfg.get("step", 0.001) * x_cfg.get("invert", 1)))
+        y_counts = int(round(y_mm / y_cfg.get("step", 0.001) * y_cfg.get("invert", 1)))
+        self._move_absolute_counts(x=x_counts, y=y_counts, wait=wait)
 
     def home(self, axis: str | None = None):
         """Zero position without moving (set current as origin).
