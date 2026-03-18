@@ -174,10 +174,11 @@ class ControlWindow(QWidget):
         grid.addWidget(QLabel("Binning:"), 13, 0)
         binning_selector = QComboBox()
         binning_selector.addItems(["1x (full)", "2x", "4x"])
-        binning_selector.setCurrentText("4x")
+        # Connect before setCurrentText so the initial "4x" selection fires the signal
         binning_selector.currentTextChanged.connect(
             lambda t: controller.binning_changed.emit(int(t.split("x")[0]))
         )
+        binning_selector.setCurrentText("4x")
         grid.addWidget(binning_selector, 13, 1)
 
         native_zoom_check = QCheckBox("Native Zoom (1:1)")

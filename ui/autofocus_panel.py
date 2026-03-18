@@ -275,19 +275,20 @@ class FocusWorker(QObject):
             else:
                 noise_floor = 0.0
 
-            # Re-evaluate was_pos (and any peak found in the initial scan) using
-            # the noise floor.  The initial scan uses threshold=0 so even a tiny
-            # noise wiggle can set was_pos=True or peak_found=True.  Check the
-            # total metric rise (max probed value minus starting value): if that
-            # rise is smaller than the noise floor there was no real signal.
-            # Using the total rise (not per-step smoothed delta) correctly handles
-            # a gradual ramp toward a focus peak — the smoothed delta may stay
-            # below noise_floor yet the cumulative climb is clearly real.
-            if deltas and noise_floor > 0 and (was_pos or peak_found):
+            # Re-evaluate was_pos using the noise floor.  The initial scan uses
+            # threshold=0 so even a tiny noise wiggle can set was_pos=True.
+            # Check the total metric rise; if it's smaller than the noise floor
+            # there was no real signal and we shouldn't continue in this direction.
+            # NOTE: do NOT reset peak_found here — if a genuine zero-crossing was
+            # detected (metric rose then fell) in the initial scan it is a real
+            # peak regardless of the noise floor estimate.  The noise floor
+            # estimate itself can be inflated when the peak falls within the
+            # initial scan (all |deltas| are similar in magnitude for a symmetric
+            # peak → lower-half median ≈ per-step delta → noise_floor ≈ max_rise).
+            if deltas and noise_floor > 0 and was_pos and not peak_found:
                 max_rise = max(m_list[1:len(deltas) + 1]) - m_list[0]
                 if max_rise <= noise_floor:
-                    was_pos    = False
-                    peak_found = False
+                    was_pos = False
 
             # Direction decision and continuation (only if peak not yet found)
             if not peak_found:
