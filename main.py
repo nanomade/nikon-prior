@@ -2,13 +2,36 @@
 
 Entry point.  Run with:
     python main.py
+
+Note on Qt / cv2 conflict
+--------------------------
+opencv-python bundles its own Qt and registers cv2/qt/plugins as a Qt
+platform-plugin search path at import time.  If cv2 is imported before
+QApplication is created, its bundled (often ABI-incompatible) xcb plugin
+can win the search and crash the app with:
+  "Could not load the Qt platform plugin xcb … Aborted (core dumped)"
+The moveToThread warning at startup is a related symptom (cv2 creates Qt
+objects internally during import when no QApplication exists yet).
+
+Fix applied here: create QApplication before importing any module that
+imports cv2 at module level (stage_controls, autofocus_panel, etc.).
+Once QApplication is constructed, PyQt5's platform plugin is already
+loaded and cv2's path registration has no effect.
+
+Permanent alternative: pip install opencv-python-headless
+(headless OpenCV has no bundled Qt, so the conflict never arises).
 """
 
 import logging
 import sys
 
-from PyQt5.QtCore import QPoint
 from PyQt5.QtWidgets import QApplication
+
+# ── Create QApplication NOW, before any cv2-importing module is loaded ──────
+# This must come before all other local imports.
+_qapp = QApplication(sys.argv)
+
+from PyQt5.QtCore import QPoint
 
 from controller import Controller
 from motors.factory import create_motor_manager
@@ -49,7 +72,7 @@ def _tile_windows(widgets, start=QPoint(40, 40), gap=20):
 
 class Application:
     def __init__(self):
-        self.app = QApplication(sys.argv)
+        self.app = QApplication.instance()  # reuse the one created at module level
         self.motor_manager = create_motor_manager()
         self.controller = Controller()
         self._init_windows()
