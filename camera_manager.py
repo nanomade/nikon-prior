@@ -208,6 +208,11 @@ class AlviumCameraManager:
                 cam.get_feature_by_name(feat).set(1)
             except Exception:
                 pass
+        for feat, val in (("Width", SENSOR_WIDTH), ("Height", SENSOR_HEIGHT)):
+            try:
+                cam.get_feature_by_name(feat).set(val)
+            except Exception:
+                pass
 
         self.native_width  = SENSOR_WIDTH
         self.native_height = SENSOR_HEIGHT
@@ -311,6 +316,13 @@ class AlviumCameraManager:
                     cam.get_feature_by_name(feat).set(1)
                 except Exception:
                     pass
+            # Explicitly restore full sensor dimensions — some cameras (Alvium) keep
+            # Width/Height at the last binned value rather than auto-expanding.
+            for feat, val in (("Width", SENSOR_WIDTH), ("Height", SENSOR_HEIGHT)):
+                try:
+                    cam.get_feature_by_name(feat).set(val)
+                except Exception:
+                    pass
             self._software_scale   = 1
             self.native_width      = SENSOR_WIDTH
             self.native_height     = SENSOR_HEIGHT
@@ -374,6 +386,13 @@ class AlviumCameraManager:
                 for feat in ("BinningHorizontal", "BinningVertical"):
                     try:
                         cam.get_feature_by_name(feat).set(1)
+                    except Exception:
+                        pass
+                # Explicitly restore full sensor dimensions — some cameras (Alvium)
+                # keep Width/Height at the last binned value after resetting binning.
+                for feat, val in (("Width", SENSOR_WIDTH), ("Height", SENSOR_HEIGHT)):
+                    try:
+                        cam.get_feature_by_name(feat).set(val)
                     except Exception:
                         pass
                 self._software_scale   = factor
