@@ -1,126 +1,155 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
   <defs>
-    <!-- Background gradient -->
-    <radialGradient id="bgGrad" cx="50%" cy="40%" r="55%">
+    <radialGradient id="bg" cx="50%" cy="45%" r="56%">
       <stop offset="0%" stop-color="#1e2f5e"/>
       <stop offset="100%" stop-color="#0d1220"/>
     </radialGradient>
-    <!-- Teal glow for lens -->
-    <radialGradient id="lensGlow" cx="50%" cy="50%" r="50%">
+    <linearGradient id="body" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2a4070"/>
+      <stop offset="100%" stop-color="#0f2448"/>
+    </linearGradient>
+    <linearGradient id="bodyLight" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#3a5080"/>
+      <stop offset="60%" stop-color="#1a3060"/>
+      <stop offset="100%" stop-color="#0f2448"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#1fd6c0"/>
-      <stop offset="60%" stop-color="#0f9b8e"/>
-      <stop offset="100%" stop-color="#0a6b60"/>
-    </radialGradient>
-    <!-- Stage specimen glow -->
-    <radialGradient id="specimenGlow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#ff6b7a"/>
-      <stop offset="100%" stop-color="#e94560"/>
-    </radialGradient>
-    <!-- Light beam -->
-    <linearGradient id="lightBeam" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#0f9b8e" stop-opacity="0.7"/>
-      <stop offset="100%" stop-color="#0f9b8e" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#0a7a70"/>
     </linearGradient>
-    <!-- Body gradient -->
-    <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#1a3a7a"/>
-      <stop offset="100%" stop-color="#0f2a5a"/>
-    </linearGradient>
-    <!-- Drop shadow -->
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.5"/>
+    <radialGradient id="lensG" cx="40%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#40e8d4"/>
+      <stop offset="100%" stop-color="#0f9b8e"/>
+    </radialGradient>
+    <radialGradient id="specimenG" cx="40%" cy="35%" r="55%">
+      <stop offset="0%" stop-color="#ff8090"/>
+      <stop offset="100%" stop-color="#c03048"/>
+    </radialGradient>
+    <filter id="sh" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="1" dy="3" stdDeviation="4" flood-color="#000" flood-opacity="0.55"/>
     </filter>
-    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="3" result="blur"/>
-      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2.5" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow">
+      <feGaussianBlur stdDeviation="4" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
   </defs>
 
-  <!-- Rounded background -->
-  <rect width="256" height="256" rx="44" fill="url(#bgGrad)"/>
+  <!-- Rounded square background -->
+  <rect width="256" height="256" rx="44" fill="url(#bg)"/>
 
-  <!-- ── Light beam (below stage) ── -->
-  <polygon points="100,168 156,168 140,210 116,210" fill="url(#lightBeam)" opacity="0.45"/>
+  <!-- ══ BASE ══ -->
+  <rect x="38" y="218" width="180" height="18" rx="7" fill="url(#body)" filter="url(#sh)"/>
+  <!-- base top edge highlight -->
+  <rect x="44" y="218" width="168" height="4" rx="3" fill="#3a5080" opacity="0.5"/>
 
-  <!-- ── Base ── -->
-  <rect x="62" y="212" width="132" height="20" rx="10" fill="url(#bodyGrad)" filter="url(#shadow)"/>
-  <!-- Base foot detail -->
-  <rect x="74" y="210" width="108" height="6" rx="3" fill="#1a3a7a"/>
+  <!-- ══ REAR VERTICAL COLUMN / ARM ══
+       The Nikon L200ND has a boxy arm rising from the right rear of the base -->
+  <!-- Main arm column -->
+  <rect x="148" y="68" width="42" height="154" rx="6" fill="url(#bodyLight)" filter="url(#sh)"/>
+  <!-- arm left highlight stripe -->
+  <rect x="150" y="72" width="7" height="146" rx="3" fill="#3a5280" opacity="0.45"/>
+  <!-- arm right edge -->
+  <rect x="183" y="72" width="5" height="146" rx="2" fill="#0a1a38" opacity="0.4"/>
 
-  <!-- ── Vertical arm / stand ── -->
-  <rect x="108" y="80" width="24" height="138" rx="6" fill="url(#bodyGrad)" filter="url(#shadow)"/>
-  <!-- Arm highlight stripe -->
-  <rect x="111" y="82" width="5" height="134" rx="2.5" fill="#2a4a8a" opacity="0.6"/>
+  <!-- ══ HORIZONTAL BRIDGE (arm to head) ══ -->
+  <rect x="82" y="68" width="76" height="30" rx="6" fill="url(#bodyLight)" filter="url(#sh)"/>
+  <!-- bridge highlight -->
+  <rect x="86" y="70" width="66" height="8" rx="3" fill="#3a5080" opacity="0.4"/>
 
-  <!-- ── Curved arm (connects stand to head) ── -->
-  <path d="M 108 92 Q 80 88 72 62 Q 68 44 82 36 L 96 36 Q 84 42 88 58 Q 94 78 108 82 Z"
-        fill="url(#bodyGrad)" filter="url(#shadow)"/>
+  <!-- ══ HEAD BODY (boxy Nikon block) ══ -->
+  <rect x="72" y="32" width="86" height="48" rx="8" fill="url(#bodyLight)" filter="url(#sh)"/>
+  <!-- head top highlight -->
+  <rect x="78" y="34" width="74" height="8" rx="4" fill="#3a5888" opacity="0.5"/>
+  <!-- head left edge darker -->
+  <rect x="72" y="36" width="8" height="40" rx="4" fill="#0e2040" opacity="0.35"/>
+  <!-- trinocular port (top centre) -->
+  <rect x="114" y="28" width="18" height="10" rx="4" fill="#0a1830" stroke="#0f9b8e" stroke-width="1.2"/>
+  <ellipse cx="123" cy="28" rx="6" ry="3" fill="url(#lensG)" opacity="0.7" filter="url(#glow)"/>
 
-  <!-- ── Head / binocular body ── -->
-  <rect x="66" y="28" width="60" height="46" rx="10" fill="url(#bodyGrad)" filter="url(#shadow)"/>
-  <!-- Head highlight -->
-  <rect x="70" y="32" width="8" height="38" rx="4" fill="#2a4a8a" opacity="0.5"/>
+  <!-- ══ BINOCULAR EYEPIECES ══
+       Angled outward, as on the real scope -->
+  <!-- Left eyepiece tube (angled ~-20 deg) -->
+  <g transform="rotate(-22, 88, 42)">
+    <rect x="70" y="28" width="16" height="30" rx="7" fill="url(#body)" filter="url(#sh)"/>
+    <!-- eyepiece rim top -->
+    <ellipse cx="78" cy="28" rx="8" ry="4" fill="#0d1828" stroke="#0f9b8e" stroke-width="1.5"/>
+    <ellipse cx="78" cy="28" rx="5" ry="2.5" fill="url(#lensG)" filter="url(#glow)"/>
+    <ellipse cx="76" cy="27" rx="1.5" ry="1" fill="#afffff" opacity="0.5"/>
+  </g>
+  <!-- Right eyepiece tube (angled +20 deg) -->
+  <g transform="rotate(22, 142, 42)">
+    <rect x="144" y="28" width="16" height="30" rx="7" fill="url(#body)" filter="url(#sh)"/>
+    <ellipse cx="152" cy="28" rx="8" ry="4" fill="#0d1828" stroke="#0f9b8e" stroke-width="1.5"/>
+    <ellipse cx="152" cy="28" rx="5" ry="2.5" fill="url(#lensG)" filter="url(#glow)"/>
+    <ellipse cx="150" cy="27" rx="1.5" ry="1" fill="#afffff" opacity="0.5"/>
+  </g>
 
-  <!-- ── Eyepieces ── -->
-  <!-- Left eyepiece -->
-  <rect x="68" y="14" width="22" height="26" rx="8" fill="url(#bodyGrad)" filter="url(#shadow)"/>
-  <ellipse cx="79" cy="14" rx="9" ry="5" fill="#0f1830"/>
-  <ellipse cx="79" cy="14" rx="6" ry="3" fill="url(#lensGlow)" filter="url(#glow)"/>
-  <ellipse cx="76" cy="13" rx="2" ry="1.2" fill="#7fffe8" opacity="0.5"/>
+  <!-- ══ ILLUMINATION ARM / LAMP HOUSING (left side of head) ══ -->
+  <rect x="44" y="48" width="36" height="24" rx="6" fill="url(#body)" filter="url(#sh)"/>
+  <rect x="44" y="52" width="36" height="8" rx="3" fill="#2a4070" opacity="0.5"/>
+  <!-- lamp port -->
+  <rect x="28" y="54" width="22" height="12" rx="5" fill="#0a1828" stroke="#3a5888" stroke-width="1"/>
+  <ellipse cx="28" cy="60" rx="4" ry="6" fill="#e94560" opacity="0.7" filter="url(#glow)"/>
 
-  <!-- Right eyepiece -->
-  <rect x="96" y="14" width="22" height="26" rx="8" fill="url(#bodyGrad)" filter="url(#shadow)"/>
-  <ellipse cx="107" cy="14" rx="9" ry="5" fill="#0f1830"/>
-  <ellipse cx="107" cy="14" rx="6" ry="3" fill="url(#lensGlow)" filter="url(#glow)"/>
-  <ellipse cx="104" cy="13" rx="2" ry="1.2" fill="#7fffe8" opacity="0.5"/>
+  <!-- ══ NOSEPIECE / REVOLVING TURRET (underneath head body) ══ -->
+  <!-- The turret sits below the optical body, centred ~x=115 -->
+  <ellipse cx="115" cy="130" rx="28" ry="10" fill="#0f2040" stroke="#2a4070" stroke-width="1.5" filter="url(#sh)"/>
+  <ellipse cx="115" cy="130" rx="22" ry="7" fill="#162848"/>
 
-  <!-- ── Nosepiece / turret ── -->
-  <ellipse cx="128" cy="146" rx="26" ry="10" fill="#0f2a5a" stroke="#2a4a8a" stroke-width="1.5" filter="url(#shadow)"/>
+  <!-- ══ OBJECTIVES pointing DOWN from turret ══ -->
+  <!-- Longest (centre, in position) -->
+  <rect x="109" y="130" width="12" height="34" rx="4" fill="url(#body)" stroke="#2a4070" stroke-width="1"/>
+  <ellipse cx="115" cy="165" rx="8" ry="3.5" fill="url(#lensG)" filter="url(#glow)"/>
+  <ellipse cx="113" cy="163" rx="2" ry="1.2" fill="#c0fff8" opacity="0.4"/>
+  <!-- Short left -->
+  <rect x="90" y="131" width="9" height="20" rx="3" fill="url(#body)" stroke="#2a4070" stroke-width="1"/>
+  <ellipse cx="95" cy="152" rx="5" ry="2.5" fill="#0f9b8e" opacity="0.7"/>
+  <!-- Short right -->
+  <rect x="130" y="131" width="9" height="24" rx="3" fill="url(#body)" stroke="#2a4070" stroke-width="1"/>
+  <ellipse cx="134" cy="156" rx="5" ry="2.5" fill="#0f9b8e" opacity="0.7"/>
 
-  <!-- ── Objectives (3) ── -->
-  <!-- Long centre objective (in position) -->
-  <rect x="122" y="146" width="12" height="30" rx="4" fill="#1a3a7a" stroke="#2a4a8a" stroke-width="1"/>
-  <ellipse cx="128" cy="178" rx="8" ry="4" fill="url(#lensGlow)" filter="url(#glow)"/>
-  <ellipse cx="126" cy="176" rx="2.5" ry="1.5" fill="#afffff" opacity="0.45"/>
+  <!-- ══ STAGE (large flat platform, Nikon L200ND has a wide XY stage) ══ -->
+  <!-- Stage plate -->
+  <rect x="46" y="172" width="140" height="14" rx="5" fill="url(#bodyLight)" stroke="#2a4070" stroke-width="1.2" filter="url(#sh)"/>
+  <!-- stage top surface highlight -->
+  <rect x="52" y="173" width="128" height="5" rx="2" fill="#3a5888" opacity="0.35"/>
+  <!-- Stage opening / specimen area -->
+  <rect x="96" y="165" width="40" height="10" rx="2" fill="#0a1428" stroke="#2a4070" stroke-width="1"/>
+  <!-- Specimen glow -->
+  <ellipse cx="116" cy="170" rx="14" ry="4" fill="url(#specimenG)" opacity="0.8" filter="url(#softglow)"/>
+  <ellipse cx="116" cy="170" rx="7" ry="2" fill="#ffc0c8" opacity="0.45"/>
 
-  <!-- Short objective left -->
-  <rect x="103" y="147" width="9" height="18" rx="3" fill="#1a3a7a" stroke="#2a4a8a" stroke-width="1"/>
-  <ellipse cx="107" cy="166" rx="5" ry="2.5" fill="#0f9b8e" opacity="0.7"/>
+  <!-- ══ COARSE FOCUS KNOBS (on column sides) ══ -->
+  <!-- Left coarse knob -->
+  <ellipse cx="148" cy="148" rx="7" ry="11" fill="#0f2040" stroke="#2a4070" stroke-width="1.5" filter="url(#sh)"/>
+  <ellipse cx="148" cy="148" rx="4.5" ry="7.5" fill="#1a3060"/>
+  <!-- knob grip lines -->
+  <line x1="148" y1="140" x2="148" y2="156" stroke="#2a4888" stroke-width="0.8"/>
+  <line x1="144" y1="142" x2="152" y2="154" stroke="#2a4888" stroke-width="0.7"/>
+  <line x1="144" y1="154" x2="152" y2="142" stroke="#2a4888" stroke-width="0.7"/>
+  <!-- Right coarse knob (other side of column) -->
+  <ellipse cx="190" cy="148" rx="7" ry="11" fill="#0f2040" stroke="#2a4070" stroke-width="1.5" filter="url(#sh)"/>
+  <ellipse cx="190" cy="148" rx="4.5" ry="7.5" fill="#1a3060"/>
+  <line x1="190" y1="140" x2="190" y2="156" stroke="#2a4888" stroke-width="0.8"/>
 
-  <!-- Short objective right -->
-  <rect x="144" y="147" width="9" height="22" rx="3" fill="#1a3a7a" stroke="#2a4a8a" stroke-width="1"/>
-  <ellipse cx="148" cy="170" rx="5" ry="2.5" fill="#0f9b8e" opacity="0.7"/>
+  <!-- Fine focus knob (smaller, above coarse) -->
+  <ellipse cx="148" cy="132" rx="5" ry="8" fill="#0f2040" stroke="#2a4070" stroke-width="1.2" filter="url(#sh)"/>
+  <ellipse cx="148" cy="132" rx="3" ry="5" fill="#1a3060"/>
+  <ellipse cx="190" cy="132" rx="5" ry="8" fill="#0f2040" stroke="#2a4070" stroke-width="1.2" filter="url(#sh)"/>
+  <ellipse cx="190" cy="132" rx="3" ry="5" fill="#1a3060"/>
 
-  <!-- ── Stage ── -->
-  <rect x="82" y="157" width="92" height="14" rx="6" fill="url(#bodyGrad)" stroke="#2a4a8a" stroke-width="1.5" filter="url(#shadow)"/>
-  <!-- Stage highlight -->
-  <rect x="86" y="159" width="84" height="4" rx="2" fill="#2a4a8a" opacity="0.5"/>
+  <!-- ══ XY STAGE CONTROL KNOBS (front of stage) ══ -->
+  <ellipse cx="60" cy="192" rx="9" ry="6" fill="#0f2040" stroke="#2a4070" stroke-width="1.2" filter="url(#sh)"/>
+  <ellipse cx="60" cy="192" rx="6" ry="3.5" fill="#1a3060"/>
+  <ellipse cx="80" cy="192" rx="7" ry="5" fill="#0f2040" stroke="#2a4070" stroke-width="1.2" filter="url(#sh)"/>
+  <ellipse cx="80" cy="192" rx="4.5" ry="3" fill="#1a3060"/>
 
-  <!-- ── Specimen on stage ── -->
-  <rect x="110" y="151" width="36" height="8" rx="2" fill="#0d1830" stroke="#2a4a8a" stroke-width="1"/>
-  <!-- Specimen glow (sample) -->
-  <ellipse cx="128" cy="155" rx="10" ry="3.5" fill="url(#specimenGlow)" opacity="0.85" filter="url(#glow)"/>
-  <ellipse cx="128" cy="155" rx="5" ry="1.8" fill="#ff9faa" opacity="0.5"/>
-
-  <!-- ── Coarse / fine focus knobs ── -->
-  <!-- Coarse -->
-  <ellipse cx="136" cy="122" rx="14" ry="9" fill="#0f2a5a" stroke="#2a4a8a" stroke-width="1.5" filter="url(#shadow)"/>
-  <ellipse cx="136" cy="122" rx="10" ry="6" fill="#1a3a7a"/>
-  <!-- knob lines -->
-  <line x1="126" y1="122" x2="146" y2="122" stroke="#2a4a8a" stroke-width="1"/>
-  <line x1="128" y1="118" x2="144" y2="126" stroke="#2a4a8a" stroke-width="0.8"/>
-  <line x1="128" y1="126" x2="144" y2="118" stroke="#2a4a8a" stroke-width="0.8"/>
-
-  <!-- Fine focus (smaller) -->
-  <ellipse cx="136" cy="108" rx="10" ry="6" fill="#0f2a5a" stroke="#2a4a8a" stroke-width="1.2" filter="url(#shadow)"/>
-  <ellipse cx="136" cy="108" rx="7" ry="4" fill="#1a3a7a"/>
-
-  <!-- ── Condenser (below stage) ── -->
-  <rect x="118" y="171" width="20" height="12" rx="4" fill="#1a3a7a" stroke="#2a4a8a" stroke-width="1"/>
-  <ellipse cx="128" cy="184" rx="10" ry="4" fill="#0f2a5a" stroke="#2a4a8a" stroke-width="1"/>
-
-  <!-- ── Accent dot (brand colour) ── -->
-  <circle cx="212" cy="44" r="14" fill="#e94560" opacity="0.92" filter="url(#shadow)"/>
-  <circle cx="212" cy="44" r="9" fill="#ff6b7a" opacity="0.6"/>
-  <circle cx="209" cy="41" r="3" fill="#ffaaaa" opacity="0.5"/>
+  <!-- ══ BRAND ACCENT DOT ══ -->
+  <circle cx="210" cy="46" r="16" fill="#e94560" opacity="0.9" filter="url(#sh)"/>
+  <circle cx="210" cy="46" r="10" fill="#ff7080" opacity="0.55"/>
+  <circle cx="207" cy="43" r="3.5" fill="#ffb0b8" opacity="0.45"/>
 </svg>
