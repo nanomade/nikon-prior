@@ -294,22 +294,29 @@ class FocusWorker(QObject):
             # Direction decision and continuation (only if peak not yet found)
             if not peak_found:
                 if not was_pos:
-                    # Metric never rose during initial scan → wrong direction
-                    direction = -direction
-                    z_scan    = z0
-                    deltas    = []
+                    # Metric never rose during initial scan → wrong direction.
+                    # Reset noise_floor to 0: it was estimated from the wrong-
+                    # direction scan and would suppress the real peak signal in the
+                    # new direction.  Using 0 lets any positive smoothed delta set
+                    # was_pos so the zero-crossing can fire normally.
+                    direction   = -direction
+                    z_scan      = z0
+                    deltas      = []
+                    noise_floor = 0.0
                 # else: rising but not yet peaked → keep going the same way
                 peak_found, z_scan = scan_for_peak(direction, z_scan, deltas,
                                                    was_pos=was_pos,
                                                    noise_floor=noise_floor)
 
-            # Last resort: try the opposite direction from z0
+            # Last resort: try the opposite direction from z0.
+            # Use noise_floor=0 here too — any noise estimate from earlier phases
+            # is not meaningful for a fresh scan in a new region.
             if not peak_found:
                 if self._stop:
                     self.aborted.emit("Stopped by user"); return
                 deltas = []
                 peak_found, z_scan = scan_for_peak(-direction, z0, deltas,
-                                                   noise_floor=noise_floor)
+                                                   noise_floor=0.0)
 
             if self._stop:
                 self.aborted.emit("Stopped by user"); return
