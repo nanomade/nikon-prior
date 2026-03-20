@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nikon-Prior — Quick Start &amp; Reference</title>
+<style>
+  :root {
+    --bg:       #1a1a2e;
+    --surface:  #16213e;
+    --card:     #0f3460;
+    --accent:   #e94560;
+    --accent2:  #0f9b8e;
+    --text:     #e0e0e0;
+    --muted:    #9090a0;
+    --border:   #2a3a5e;
+    --code-bg:  #0d1b2a;
+    --tip-bg:   #0d2a1e;
+    --tip-border:#1a8a5a;
+    --warn-bg:  #3a2010;
+    --warn-border:#c06020;
+    --font:     'Segoe UI', system-ui, sans-serif;
+    --mono:     'Cascadia Code', 'Consolas', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; padding: 32px 40px 80px; max-width: 1200px; margin: 0 auto; }
+
+  h1 { font-size: 2rem; font-weight: 700; color: #fff; }
+  .subtitle { color: var(--muted); margin-bottom: 32px; }
+  h2 { font-size: 1.05rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent2); margin: 0 0 10px; }
+  h3 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 14px 0 6px; }
+  p { margin-bottom: 6px; }
+  code { font-family: var(--mono); font-size: 12px; background: var(--code-bg); padding: 1px 5px; border-radius: 3px; color: #7dd3fc; }
+
+  /* ── Grid layout ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .grid-wide {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+  }
+  .card.accent { border-left: 3px solid var(--accent2); }
+
+  /* ── Step list ── */
+  .steps { counter-reset: step; list-style: none; padding: 0; }
+  .steps li {
+    counter-increment: step;
+    display: flex;
+    gap: 12px;
+    margin-bottom: 8px;
+    align-items: flex-start;
+  }
+  .steps li::before {
+    content: counter(step);
+    flex-shrink: 0;
+    width: 22px; height: 22px;
+    background: var(--accent);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    color: #fff;
+    margin-top: 1px;
+  }
+
+  /* ── Key table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td:first-child { white-space: nowrap; }
+
+  kbd {
+    display: inline-block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #fff;
+    line-height: 1.8;
+  }
+
+  /* ── Callouts ── */
+  .tip {
+    background: var(--tip-bg);
+    border-left: 3px solid var(--tip-border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0 0;
+    font-size: 13px;
+  }
+  .warn {
+    background: var(--warn-bg);
+    border-left: 3px solid var(--warn-border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    margin: 12px 0 0;
+    font-size: 13px;
+  }
+  .tip strong, .warn strong { display: block; margin-bottom: 2px; }
+
+  /* ── Section divider ── */
+  .section-title {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 6px;
+    margin: 32px 0 14px;
+  }
+
+  /* ── Pill badges ── */
+  .badge {
+    display: inline-block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1px 9px;
+    font-size: 11px;
+    color: var(--accent2);
+    margin-right: 4px;
+  }
+
+  /* ── Workflow arrow list ── */
+  .flow { list-style: none; padding: 0; }
+  .flow li { padding: 3px 0 3px 18px; position: relative; font-size: 13px; }
+  .flow li::before { content: "→"; position: absolute; left: 0; color: var(--accent2); }
+
+  @media print {
+    body { background: #fff; color: #000; padding: 16px; }
+    .card { border: 1px solid #ccc; background: #f8f8f8; }
+    kbd { background: #eee; border-color: #aaa; color: #000; }
+    code { background: #eee; color: #333; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Nikon-Prior &mdash; Quick Start &amp; Reference</h1>
+<p class="subtitle">Allied Vision Alvium 1800 U-508c &nbsp;|&nbsp; Prior ProScan III &nbsp;|&nbsp; Nikon L200ND &nbsp;&mdash;&nbsp; v2025</p>
+
+<!-- ═══════════════════════════════════════════════════════ STARTUP -->
+<div class="section-title">First-Time / Startup</div>
+<div class="grid-wide">
+
+  <div class="card accent">
+    <h2>Launch</h2>
+    <ol class="steps">
+      <li>Activate the Python venv: <code>source ~/nikon-prior/bin/activate</code></li>
+      <li>Run: <code>QT_QPA_PLATFORM=xcb python main.py</code></li>
+      <li>The <strong>Launcher</strong> window opens. Click buttons to open panels.</li>
+      <li>Click <strong>Open Camera Preview</strong> &rarr; live image appears.</li>
+      <li>Click <strong>Open Imaging Controls</strong> &rarr; adjust exposure, binning, WB.</li>
+    </ol>
+    <div class="tip"><strong>No camera?</strong> App falls back to MockCamera (synthetic noise). Check USB connection and Vimba X runtime if camera is missing.</div>
+    <div class="warn"><strong>"Camera already in use"</strong> &mdash; run <code>pkill -f main.py</code> or replug USB.</div>
+  </div>
+
+  <div class="card">
+    <h2>Typical imaging workflow</h2>
+    <ul class="flow">
+      <li>Select magnification in Imaging Controls</li>
+      <li>Set binning to <strong>4x</strong> for fast overview, <strong>1x</strong> for full resolution</li>
+      <li>Adjust exposure (log slider, 0.01–1000 ms) or enable Auto Exposure</li>
+      <li>Set white balance temperature (~5300 K for daylight LEDs)</li>
+      <li>Navigate stage with XY sliders or joystick</li>
+      <li>Focus with Z slider or run Autofocus</li>
+      <li>Enable Scale Bar; disable when saving for analysis</li>
+      <li>Use <strong>Capture Frame</strong> (raw) or <strong>Save View</strong> (screen)</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ KEYBOARD -->
+<div class="section-title">Keyboard Shortcuts &amp; Mouse</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>Stage movement (Camera Preview focused)</h2>
+    <table>
+      <tr><th>Key</th><th>Action</th></tr>
+      <tr><td><kbd>W</kbd> / <kbd>S</kbd></td><td>Move stage +Y / &minus;Y</td></tr>
+      <tr><td><kbd>A</kbd> / <kbd>D</kbd></td><td>Move stage &minus;X / +X</td></tr>
+      <tr><td><kbd>Q</kbd> / <kbd>E</kbd></td><td>Move stage &minus;Z / +Z (focus)</td></tr>
+      <tr><td><kbd>Shift</kbd> + above</td><td>10&times; larger step</td></tr>
+      <tr><td>Click preview</td><td>Move stage so clicked point centres</td></tr>
+    </table>
+    <div class="tip">Step size is set in the Stage Controls panel (default 10 µm XY, 1 µm Z).</div>
+  </div>
+
+  <div class="card">
+    <h2>Zoom &amp; measurement</h2>
+    <table>
+      <tr><th>Key / action</th><th>Effect</th></tr>
+      <tr><td>Double-click <strong>Centre Zoom</strong> window</td><td>Move stage to that point</td></tr>
+      <tr><td>Double-click <strong>Zoom Under Cursor</strong> window</td><td>Move stage to cursor location</td></tr>
+      <tr><td>Click + drag (Measure Tool on)</td><td>Draw measurement line</td></tr>
+      <tr><td>Right-click (Measure Tool on)</td><td>Clear measurement</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Gamepad (Xbox-compatible)</h2>
+    <table>
+      <tr><th>Control</th><th>Action</th></tr>
+      <tr><td>Left stick</td><td>XY stage (speed = deflection)</td></tr>
+      <tr><td>Right stick Y</td><td>Z focus</td></tr>
+      <tr><td>RT / LT</td><td>Fast / fine speed modifier</td></tr>
+      <tr><td>A</td><td>Save position</td></tr>
+      <tr><td>B</td><td>Go to saved position</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ IMAGING CONTROLS -->
+<div class="section-title">Imaging Controls Reference</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>Exposure</h2>
+    <table>
+      <tr><th>Control</th><th>Notes</th></tr>
+      <tr><td>Slider (log scale)</td><td>0.01–1000 ms. Drag or type ms in box &amp; press Enter.</td></tr>
+      <tr><td>Auto Exposure</td><td>Disables slider; re-enables on uncheck, reads back actual value.</td></tr>
+      <tr><td>Mag-based preset</td><td>Check to auto-load per-objective defaults from <code>focus_presets.json</code>.</td></tr>
+    </table>
+    <div class="tip">Defaults: 10x = 6 ms. Add your own in <code>focus_presets.json</code> under <code>"exposure_defaults"</code>.</div>
+  </div>
+
+  <div class="card">
+    <h2>Binning</h2>
+    <table>
+      <tr><th>Mode</th><th>Resolution</th><th>Use when</th></tr>
+      <tr><td><strong>1x</strong> (full)</td><td>2464 &times; 2056</td><td>High-res capture, measurement</td></tr>
+      <tr><td><strong>2x</strong></td><td>1232 &times; 1028</td><td>Balanced speed/resolution</td></tr>
+      <tr><td><strong>4x</strong></td><td>616 &times; 514</td><td>Fast navigation, autofocus</td></tr>
+    </table>
+    <div class="tip">All three modes show the <em>same full-sensor FOV</em> — only pixel count changes.</div>
+  </div>
+
+  <div class="card">
+    <h2>White Balance</h2>
+    <table>
+      <tr><th>Setting</th><th>Scene</th></tr>
+      <tr><td>2800 K</td><td>Tungsten / warm halogen</td></tr>
+      <tr><td>4000 K</td><td>Cool white fluorescent</td></tr>
+      <tr><td>5300 K (default)</td><td>Neutral LED illumination</td></tr>
+      <tr><td>6500 K</td><td>Daylight / cold LED</td></tr>
+    </table>
+    <div class="tip">Sets Red and Blue BalanceRatio on camera. Green is fixed at 1.0.</div>
+  </div>
+
+  <div class="card">
+    <h2>Overlay options</h2>
+    <table>
+      <tr><th>Control</th><th>What it does</th></tr>
+      <tr><td>Show Scale Bar</td><td>Calibrated bar, colour selectable</td></tr>
+      <tr><td>Show Centre Zoom</td><td>12.5&times; zoom of central ±20 px region</td></tr>
+      <tr><td>Zoom Under Cursor</td><td>12.5&times; live zoom that follows mouse</td></tr>
+      <tr><td>Full-Screen Crosshair</td><td>Full-width cross + tick marks</td></tr>
+      <tr><td>Show HUD</td><td>Stage X, Y, Z overlay in corner</td></tr>
+      <tr><td>Measure Tool</td><td>Click-drag to measure; shows distance ± error and angle</td></tr>
+      <tr><td>Flicker averaging</td><td>1–8 frames averaged; use 3–4 under AC lighting</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ STAGE -->
+<div class="section-title">Stage Controls Reference</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>XY &amp; Z sliders</h2>
+    <table>
+      <tr><th>Control</th><th>Notes</th></tr>
+      <tr><td>X slider</td><td>±127.5 mm travel</td></tr>
+      <tr><td>Y slider</td><td>±107.5 mm travel</td></tr>
+      <tr><td>Z slider</td><td>0–25 mm travel (fine focus)</td></tr>
+      <tr><td>Step size boxes</td><td>µm per key-press (keyboard moves)</td></tr>
+      <tr><td>Go to Zero</td><td>Moves XY to (0, 0)</td></tr>
+    </table>
+    <div class="tip">Joystick moves are not tracked by the app; sliders resync on next startup.</div>
+  </div>
+
+  <div class="card">
+    <h2>Position Manager</h2>
+    <table>
+      <tr><th>Action</th><th>How</th></tr>
+      <tr><td>Save position</td><td>Type a name &rarr; <strong>Save</strong></td></tr>
+      <tr><td>Go to position</td><td>Select in list &rarr; <strong>Go To</strong></td></tr>
+      <tr><td>Delete position</td><td>Select &rarr; <strong>Delete</strong></td></tr>
+      <tr><td>Persist across sessions</td><td>Positions auto-saved to <code>positions.json</code></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Stage Map</h2>
+    <ul class="flow">
+      <li>Click anywhere on the map to move stage to that XY coordinate</li>
+      <li>Current position shown as crosshair</li>
+      <li>Saved positions shown as labelled dots</li>
+      <li>Map extent matches physical stage travel limits</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ AUTOFOCUS -->
+<div class="section-title">Autofocus Reference</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>Running autofocus</h2>
+    <ol class="steps">
+      <li>Open <strong>Focus Panel</strong> from Launcher</li>
+      <li>Set <em>Search range</em> (e.g. 200 µm) and <em>Step size</em> (e.g. 5 µm)</li>
+      <li>Click <strong>Auto Focus</strong> — stage sweeps Z, finds peak sharpness</li>
+      <li>Stage moves to best-focus Z position automatically</li>
+    </ol>
+    <div class="tip">Uses Laplacian variance metric, normalised to 616×514 px so settings are consistent across all binning modes.</div>
+  </div>
+
+  <div class="card">
+    <h2>Focus presets</h2>
+    <table>
+      <tr><th>Action</th><th>How</th></tr>
+      <tr><td>Save Z preset</td><td>Navigate to focus &rarr; type name &rarr; <strong>Save Preset</strong></td></tr>
+      <tr><td>Go to preset</td><td>Select preset &rarr; <strong>Go To Preset</strong></td></tr>
+      <tr><td>Edit presets file</td><td><code>focus_presets.json</code> — edits load on next mag change</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SAMPLE TOOLS -->
+<div class="section-title">Sample Tools Reference</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>Find Wafer Extents</h2>
+    <ol class="steps">
+      <li>Place wafer on stage (rough centre)</li>
+      <li>Open <strong>Edge Detection Panel</strong></li>
+      <li>Set threshold and direction, click <strong>Find Edge</strong></li>
+      <li>Repeat for all four edges</li>
+      <li>Click <strong>Go to Centre</strong> &mdash; stage moves to wafer centre</li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <h2>Wafer Scan</h2>
+    <ul class="flow">
+      <li>Define scan grid (rows &times; columns, step size)</li>
+      <li>Click <strong>Start Scan</strong> &mdash; stage snake-scans the area</li>
+      <li>Each position auto-focuses (optional) and saves an image</li>
+      <li>Images saved with XY coordinates in filename</li>
+    </ul>
+    <div class="tip">Use 4x binning for fast overview scans; switch to 1x for high-res acquisition.</div>
+  </div>
+
+  <div class="card">
+    <h2>Index Mark Navigator</h2>
+    <ul class="flow">
+      <li>Teach the index mark position once (&ldquo;Set Reference&rdquo;)</li>
+      <li>Navigate to any saved site relative to the index mark</li>
+      <li>Compensates for wafer placement variation between sessions</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SAVING -->
+<div class="section-title">Saving Images</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>Two save modes</h2>
+    <table>
+      <tr><th>Button</th><th>What is saved</th></tr>
+      <tr><td><strong>Save View</strong></td><td>Screenshot of preview window — includes scale bar, overlays, zoom windows</td></tr>
+      <tr><td><strong>Capture Frame</strong></td><td>Raw camera frame (no overlays). Full resolution regardless of display zoom.</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>File Save Options panel</h2>
+    <ul class="flow">
+      <li>Set output folder and filename prefix</li>
+      <li>Enable auto-increment numbering</li>
+      <li>Choose format: PNG (lossless) or TIFF</li>
+      <li>Optionally embed stage XY, magnification, exposure in EXIF/metadata</li>
+    </ul>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ CALIBRATION -->
+<div class="section-title">Calibration Quick Reference</div>
+<div class="card" style="margin-bottom:16px;">
+  <h2>Pixels per micrometre (current values)</h2>
+  <table>
+    <tr><th>Objective</th><th>Binning</th><th>px/µm</th><th>FOV (full sensor)</th></tr>
+    <tr><td>10x</td><td>1x</td><td>2.03</td><td>~1.21 &times; 1.01 mm</td></tr>
+    <tr><td>10x</td><td>2x</td><td>1.015</td><td>~1.21 &times; 1.01 mm</td></tr>
+    <tr><td>10x</td><td>4x</td><td>0.508</td><td>~1.21 &times; 1.01 mm</td></tr>
+    <tr><td>5x</td><td>1x</td><td>~1.01</td><td>~2.44 &times; 2.04 mm</td></tr>
+    <tr><td>20x</td><td>1x</td><td>~4.06</td><td>~0.61 &times; 0.51 mm</td></tr>
+    <tr><td>50x</td><td>1x</td><td>~10.15</td><td>~0.24 &times; 0.20 mm</td></tr>
+    <tr><td>100x</td><td>1x</td><td>~20.30</td><td>~0.12 &times; 0.10 mm</td></tr>
+  </table>
+  <div class="tip"><strong>Note:</strong> 10x value (2.03 px/µm) measured 2026-03-18 with stage micrometer. Other objectives estimated by optical magnification ratio. Verify with micrometer before quantitative work.</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TROUBLESHOOTING -->
+<div class="section-title">Quick Troubleshooting</div>
+<div class="grid">
+
+  <div class="card">
+    <h2>Camera issues</h2>
+    <table>
+      <tr><th>Symptom</th><th>Fix</th></tr>
+      <tr><td>Mock camera / no live image</td><td>Check USB3 cable; check Vimba X runtime installed; <code>pkill -f main.py</code> then restart</td></tr>
+      <tr><td>Image very dark</td><td>Increase exposure; check illumination is on; try Auto Exposure briefly</td></tr>
+      <tr><td>Image washed out / saturated</td><td>Reduce exposure; disable Auto Exposure</td></tr>
+      <tr><td>Colour cast</td><td>Adjust WB temperature slider</td></tr>
+      <tr><td>Flickering image</td><td>Set Flicker Averaging to 3–4 frames</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Stage issues</h2>
+    <table>
+      <tr><th>Symptom</th><th>Fix</th></tr>
+      <tr><td>Stage not responding</td><td>Check USB-serial cable; verify <code>/dev/ttyACM0</code> present; restart app</td></tr>
+      <tr><td>Sliders out of sync after joystick use</td><td>Normal — sliders resync on next startup</td></tr>
+      <tr><td>Stage moves wrong direction</td><td>Check invert flags in <code>motors/step_config.json</code></td></tr>
+      <tr><td>Z drifts / overshoot</td><td>Reduce Z step size; check mechanical coupling of H122KON kit</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>Common startup errors</h2>
+    <table>
+      <tr><th>Error</th><th>Fix</th></tr>
+      <tr><td><code>Wayland warning</code></td><td>Harmless — set <code>QT_QPA_PLATFORM=xcb</code> to suppress</td></tr>
+      <tr><td><code>Camera already in use</code></td><td><code>pkill -f main.py</code> or replug USB</td></tr>
+      <tr><td><code>No module named vmbpy</code></td><td><code>pip install vmbpy</code> inside venv; install Vimba X first</td></tr>
+      <tr><td>Serial port not found</td><td>Check cable; try <code>ls /dev/ttyACM*</code>; app will use MockMotor if absent</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<p style="margin-top:32px; color:var(--muted); font-size:12px;">
+  Full manual: <code>docs/manual.html</code> &nbsp;&bull;&nbsp;
+  Config files: <code>motors/step_config.json</code>, <code>focus_presets.json</code>, <code>positions.json</code> &nbsp;&bull;&nbsp;
+  Hardware: Nikon L200ND &bull; Prior ProScan III &bull; Alvium 1800 U-508c
+</p>
+
+</body>
+</html>
