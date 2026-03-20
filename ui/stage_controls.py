@@ -8,6 +8,7 @@ Axes: X, Y (stage translation), Z (focus).  No rotation axis.
 
 import json
 import os
+import time
 
 import cv2
 import numpy as np
@@ -128,6 +129,7 @@ class StageControlWindow(QWidget):
         self.focus_panel = None       # injected after construction
 
         self._z_jog_step_um = 20   # updated by magnification signal; default = 10x value
+        self._last_cmd_time = 0.0  # timestamp of last user-initiated move command
         self._init_axis_limits()
         self._build_ui()
         self._sync_sliders_to_motors()
@@ -287,19 +289,14 @@ class StageControlWindow(QWidget):
     # ------------------------------------------------------------------
 
     def update_all_displays(self):
-        # Readout labels — both in mm, fixed-width so columns align
-        x_mm = self.stage_x_slider.value() / _UM_PER_MM
-        y_mm = self.stage_y_slider.value() / _UM_PER_MM
-        self.value_display.setText(
-            f"Setpoint  X: {x_mm:+9.4f} mm   Y: {y_mm:+9.4f} mm"
-        )
-
         def _fmt(val):
             try:
                 return f"{val:+9.4f} mm" if val is not None else "      N/A   "
             except Exception:
                 return "      N/A   "
 
+        # Read actual motor positions
+        mx = my = mz = None
         try:
             mx = self.motor_manager.get_position_units("X")
             my = self.motor_manager.get_position_units("Y")
@@ -311,7 +308,30 @@ class StageControlWindow(QWidget):
         except Exception:
             pass
 
-        # XY stage map
+        # When no move has been commanded recently, sync sliders to motor so
+        # the joystick (or any external move) keeps the display up to date.
+        if time.time() - self._last_cmd_time > 1.0:
+            if mx is not None:
+                self.stage_x_slider.blockSignals(True)
+                self.stage_x_slider.setValue(int(round(mx * _UM_PER_MM)))
+                self.stage_x_slider.blockSignals(False)
+            if my is not None:
+                self.stage_y_slider.blockSignals(True)
+                self.stage_y_slider.setValue(int(round(my * _UM_PER_MM)))
+                self.stage_y_slider.blockSignals(False)
+
+        # Setpoint label from sliders (commanded position while moving,
+        # actual motor position once synced)
+        x_mm = self.stage_x_slider.value() / _UM_PER_MM
+        y_mm = self.stage_y_slider.value() / _UM_PER_MM
+        self.value_display.setText(
+            f"Setpoint  X: {x_mm:+9.4f} mm   Y: {y_mm:+9.4f} mm"
+        )
+
+        # XY stage map — green dot follows motor position
+        dot_x_mm = mx if mx is not None else x_mm
+        dot_y_mm = my if my is not None else y_mm
+
         w, h = self.stage_display.width(), self.stage_display.height()
         img = np.full((h, w, 3), 255, dtype=np.uint8)
 
@@ -349,8 +369,8 @@ class StageControlWindow(QWidget):
                     cv2.putText(img, label, (lx + 1, ly + 1), font, scale, (0, 0, 0), thick + 1)
                     cv2.putText(img, label, (lx, ly), font, scale, (255, 255, 255), thick)
 
-        # Current position dot
-        cx, cy = _um_to_px(int(x_mm * _UM_PER_MM), int(y_mm * _UM_PER_MM))
+        # Current position dot — always motor position
+        cx, cy = _um_to_px(int(dot_x_mm * _UM_PER_MM), int(dot_y_mm * _UM_PER_MM))
         cv2.circle(img, (cx, cy), 6, (0, 180, 0), -1)
         cv2.circle(img, (cx, cy), 6, (0, 0, 0), 1)
 
@@ -365,12 +385,14 @@ class StageControlWindow(QWidget):
     def _slider_moved(self, axis: str, value_um: int):
         """Called when an XY slider moves — always sends a combined XY move so
         the G command never uses a stale cached position for the other axis."""
+        self._last_cmd_time = time.time()
         x_mm = self.stage_x_slider.value() / _UM_PER_MM
         y_mm = self.stage_y_slider.value() / _UM_PER_MM
         self._move_xy(x_mm, y_mm)
 
     def _move_xy(self, x_mm: float, y_mm: float):
         """Send a single combined XY move — prevents axis desync."""
+        self._last_cmd_time = time.time()
         try:
             self.motor_manager.move_absolute_xy_units(x_mm, y_mm, wait=False)
         except Exception as exc:
