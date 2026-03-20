@@ -240,12 +240,12 @@ class StageControlWindow(QWidget):
         full_layout.addLayout(main_layout)
 
         self.value_display = QLabel("Setpoint  X:   0.0000 mm   Y:   0.0000 mm")
-        self.value_display.setAlignment(Qt.AlignCenter)
+        self.value_display.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.value_display.setFont(QFont("Courier New", 11, QFont.Bold))
         full_layout.addWidget(self.value_display)
 
         self.unit_display = QLabel("Motor     X:        N/A   Y:        N/A   Z:        N/A (rel)")
-        self.unit_display.setAlignment(Qt.AlignCenter)
+        self.unit_display.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.unit_display.setFont(QFont("Courier New", 11))
         full_layout.addWidget(self.unit_display)
 
