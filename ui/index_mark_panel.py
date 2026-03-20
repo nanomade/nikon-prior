@@ -486,20 +486,9 @@ class IndexMarkPanel(QWidget):
         self.motor_manager.move_units('X', dx_mm)
         self.motor_manager.move_units('Y', dy_mm)
 
-        # Sync stage sliders
+        # Sync stage sliders from motor readout
         if self.stage_controls is not None:
-            cfg   = self.motor_manager.step_config
-            stepx = cfg.get('X', {}).get('step', 0.005)
-            stepy = cfg.get('Y', {}).get('step', 0.005)
-            sc = self.stage_controls
-            sc.stage_x_slider.blockSignals(True)
-            sc.stage_y_slider.blockSignals(True)
-            sc.stage_x_slider.setValue(
-                sc.stage_x_slider.value() + round(dx_mm / stepx))
-            sc.stage_y_slider.setValue(
-                sc.stage_y_slider.value() + round(dy_mm / stepy))
-            sc.stage_x_slider.blockSignals(False)
-            sc.stage_y_slider.blockSignals(False)
+            self.stage_controls._sync_sliders_to_motors()
 
         self._cur_x.setValue(self._tgt_x.value())
         self._cur_y.setValue(self._tgt_y.value())

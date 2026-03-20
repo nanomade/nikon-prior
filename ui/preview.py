@@ -442,16 +442,7 @@ class PreviewWindow(QWidget):
         self.motor_manager.move_relative_xy_units(dx_mm, dy_mm, wait=False)
 
         if self.stage_controls is not None:
-            sc = self.stage_controls
-            cfg = getattr(self.motor_manager, 'step_config', {})
-            step_x = cfg.get('X', {}).get('step', 0.001)
-            step_y = cfg.get('Y', {}).get('step', 0.001)
-            sc.stage_x_slider.blockSignals(True)
-            sc.stage_y_slider.blockSignals(True)
-            sc.stage_x_slider.setValue(sc.stage_x_slider.value() + round(dx_mm / step_x))
-            sc.stage_y_slider.setValue(sc.stage_y_slider.value() + round(dy_mm / step_y))
-            sc.stage_x_slider.blockSignals(False)
-            sc.stage_y_slider.blockSignals(False)
+            self.stage_controls._sync_sliders_to_motors()
 
     def _on_zoom_double_clicked(self, px, py):
         """Move stage so the double-clicked point in the zoom window is centred."""
