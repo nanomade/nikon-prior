@@ -363,12 +363,11 @@ class StageControlWindow(QWidget):
     # ------------------------------------------------------------------
 
     def _slider_moved(self, axis: str, value_um: int):
-        """Called when an XY slider moves — drives motor to the new position."""
-        try:
-            self.motor_manager.move_absolute_units(axis, value_um / _UM_PER_MM,
-                                                    wait=False)
-        except Exception as exc:
-            print(f"[StageControls] {axis} move error: {exc}")
+        """Called when an XY slider moves — always sends a combined XY move so
+        the G command never uses a stale cached position for the other axis."""
+        x_mm = self.stage_x_slider.value() / _UM_PER_MM
+        y_mm = self.stage_y_slider.value() / _UM_PER_MM
+        self._move_xy(x_mm, y_mm)
 
     def _move_xy(self, x_mm: float, y_mm: float):
         """Send a single combined XY move — prevents axis desync."""
