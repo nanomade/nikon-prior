@@ -27,7 +27,7 @@ _SETTINGS_FILE = "file_save_settings.json"
 class FileSavePanel(QWidget):
     def __init__(self, preview, motor_manager, controls):
         super().__init__()
-        self.setWindowTitle("File Save")
+        self.setWindowTitle("File Save Options")
         self.preview = preview
         self.motor_manager = motor_manager
         self.controls = controls

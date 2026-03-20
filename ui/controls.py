@@ -42,6 +42,7 @@ class ControlWindow(QWidget):
         layout = QVBoxLayout()
         grid = QGridLayout()
         grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
 
         # --- Exposure (log scale, 0.01–1000 ms) ---
         grid.addWidget(QLabel("Exposure:"), 0, 0)
@@ -65,7 +66,7 @@ class ControlWindow(QWidget):
 
         self._exp_slider.valueChanged.connect(_on_exp_slider)
         self._exp_text.returnPressed.connect(_on_exp_text_entered)
-        self._exp_slider.setValue(_pos_from_exp(600))  # 600 µs = 0.6 ms default
+        self._exp_slider.setValue(_pos_from_exp(6000))  # 6000 µs = 6 ms default at 10x
         grid.addWidget(self._exp_slider, 0, 1)
         grid.addWidget(self._exp_text, 0, 2)
 
@@ -113,7 +114,7 @@ class ControlWindow(QWidget):
         self._mag_selector = QComboBox()
         self._mag_selector.addItems(_OBJECTIVES)
         self._mag_selector.currentTextChanged.connect(controller.magnification_changed.emit)
-        grid.addWidget(self._mag_selector, 4, 1)
+        grid.addWidget(self._mag_selector, 4, 1, 1, 2)
 
         # --- Mag-based exposure preset ---
         self._mag_exp_check = QCheckBox("Mag-based exposure")
@@ -130,7 +131,7 @@ class ControlWindow(QWidget):
         color_selector.addItems(["White", "Black"])
         color_selector.setCurrentText("White")
         color_selector.currentTextChanged.connect(controller.color_changed.emit)
-        grid.addWidget(color_selector, 6, 1)
+        grid.addWidget(color_selector, 6, 1, 1, 2)
 
         scale_check = QCheckBox("Show Scale Bar")
         scale_check.setChecked(True)
@@ -142,7 +143,7 @@ class ControlWindow(QWidget):
         measure_check.stateChanged.connect(lambda state: controller.measure_mode_changed.emit(state == Qt.Checked))
         grid.addWidget(measure_check, 8, 0, 1, 2)
 
-        self.crosshair_check = QCheckBox("Show Center Crosshair")
+        self.crosshair_check = QCheckBox("Show Centre Zoom")
         self.crosshair_check.setChecked(False)
         self.crosshair_check.stateChanged.connect(lambda state: controller.crosshair_visible_changed.emit(state == Qt.Checked))
         grid.addWidget(self.crosshair_check, 9, 0, 1, 2)
@@ -168,7 +169,7 @@ class ControlWindow(QWidget):
             "Suppresses 50/60 Hz AC lighting flicker and reduces noise.\n"
             "1 = off.  Try 3–4 for fluorescent/LED ambient light.")
         avg_spin.valueChanged.connect(preview.set_temporal_average)
-        grid.addWidget(avg_spin, 12, 1)
+        grid.addWidget(avg_spin, 12, 1, 1, 2)
 
         # --- Binning ---
         grid.addWidget(QLabel("Binning:"), 13, 0)
@@ -179,7 +180,7 @@ class ControlWindow(QWidget):
             lambda t: controller.binning_changed.emit(int(t.split("x")[0]))
         )
         binning_selector.setCurrentText("4x")
-        grid.addWidget(binning_selector, 13, 1)
+        grid.addWidget(binning_selector, 13, 1, 1, 2)
 
         native_zoom_check = QCheckBox("Native Zoom (1:1)")
         native_zoom_check.setChecked(False)

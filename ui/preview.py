@@ -16,7 +16,7 @@ class PreviewWindow(QWidget):
 
     def __init__(self, controller):
         super().__init__()
-        self.setWindowTitle("Preview")
+        self.setWindowTitle("Camera Preview")
         self.controller = controller
     
         # Calibration table: magnification string → pixels per µm (ppm).
@@ -101,6 +101,8 @@ class PreviewWindow(QWidget):
 
         self.zoom_window = ZoomWindow()
         self.zoom_window.hide()
+        self.zoom_window.double_clicked.connect(self._on_zoom_double_clicked)
+        self._zoom_center_frame = (0, 0)  # updated each frame
 
         self.last_time = time.time()
         self.frame_count = 0
@@ -265,10 +267,7 @@ class PreviewWindow(QWidget):
             mm = self.motor_manager
             if mm:
                 for axis, fmt, unit in [
-                    ("X",  ".3f", "mm"), ("Y",  ".3f", "mm"),
-                    ("Z",  ".4f", "mm"), ("R",  ".2f", "\u00b0"),
-                    ("dX", ".4f", "mm"), ("dY", ".4f", "mm"),
-                    ("dZ", ".4f", "mm"),
+                    ("X", ".3f", "mm"), ("Y", ".3f", "mm"), ("Z", ".4f", "mm"),
                 ]:
                     try:
                         v = mm.get_position_units(axis)
@@ -324,7 +323,8 @@ class PreviewWindow(QWidget):
         self.cap.set_auto_exposure(enabled)
 
     def _set_wb_temperature(self, kelvin):
-        pass  # Not supported on Alvium via VmbPy
+        if hasattr(self.cap, 'set_white_balance_kelvin'):
+            self.cap.set_white_balance_kelvin(kelvin)
 
     def start_color_pick(self):
         """Activate eyedropper: next click samples the colour at that position."""
@@ -400,6 +400,24 @@ class PreviewWindow(QWidget):
             sc.stage_y_slider.setValue(sc.stage_y_slider.value() + round(dy_mm / step_y))
             sc.stage_x_slider.blockSignals(False)
             sc.stage_y_slider.blockSignals(False)
+
+    def _on_zoom_double_clicked(self, px, py):
+        """Move stage so the double-clicked point in the zoom window is centred."""
+        if self.motor_manager is None:
+            return
+        result = self.get_scale_bar_pixels(self.magnification)
+        if result is None:
+            return
+        _, _, ppm = result
+        # Zoom window is 500×500 showing a ±20 px crop of the original frame.
+        # Each display pixel = 40/500 = 0.08 original frame pixels.
+        zs = 20
+        frame_scale = 500.0 / (2 * zs)
+        dpx = (px - 250) / frame_scale   # offset from zoom centre in frame px
+        dpy = (py - 250) / frame_scale
+        dx_mm =  dpx / ppm / 1000.0
+        dy_mm = -dpy / ppm / 1000.0
+        self.motor_manager.move_relative_xy_units(dx_mm, dy_mm, wait=False)
 
     def set_temporal_average(self, n):
         """Set rolling-average depth. n=1 disables averaging."""
@@ -514,15 +532,18 @@ class PreviewWindow(QWidget):
             pt2_disp = (int(p2[0]/sx + ox), int(p2[1]/sy + oy))
             cv2.line(draw, pt1_disp, pt2_disp, (0,255,255), 1)
             angle = np.degrees(np.arctan2(dy_n, dx_n))
-            err = np.degrees(np.arctan2(1, dist_px)) if dist_px != 0 else 0
+            # ±1 px positional error → angle uncertainty via error propagation
+            angle_err = np.degrees(np.arctan2(1, dist_px)) if dist_px != 0 else 0
             sb = self.get_scale_bar_pixels(self.magnification)
             if sb:
                 dist_um = dist_px / sb[2]
-                dist_label = f"{dist_px:.1f}px / {dist_um:.1f} um"
+                # ±1 px positional error → distance uncertainty in µm
+                dist_err_um = 1.0 / sb[2]
+                dist_label = f"{dist_px:.1f} \u00b1 1 px  /  {dist_um:.1f} \u00b1 {dist_err_um:.1f} \u00b5m"
             else:
-                dist_label = f"{dist_px:.1f}px  (uncalibrated)"
+                dist_label = f"{dist_px:.1f} \u00b1 1 px  (uncalibrated)"
             cv2.putText(draw, dist_label, (mid_x, mid_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-            cv2.putText(draw, f"{angle:.2f} deg, error {err:.2f}", (mid_x, mid_y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+            cv2.putText(draw, f"{angle:.2f} \u00b1 {angle_err:.2f} deg", (mid_x, mid_y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
         self.last_output_frame = draw.copy()
         rgb = cv2.cvtColor(draw, cv2.COLOR_BGR2RGB)
@@ -537,6 +558,7 @@ class PreviewWindow(QWidget):
                 center_y = int((my - oy) * sy)
             except:
                 pass
+        self._zoom_center_frame = (center_x, center_y)
         zs = 20
         x1 = max(center_x - zs, 0)
         x2 = min(center_x + zs, orig_w)
@@ -583,6 +605,9 @@ class PreviewWindow(QWidget):
         event.accept()
 
 class ZoomWindow(QWidget):
+    # Emits (px, py) in the 500×500 zoom display when the user double-clicks
+    double_clicked = pyqtSignal(int, int)
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Zoom View")
@@ -592,6 +617,11 @@ class ZoomWindow(QWidget):
         self.label = QLabel(self)
         self.label.setGeometry(0, 0, 500, 500)
         self.label.setScaledContents(True)
+        self.label.mouseDoubleClickEvent = self._on_double_click
+
+    def _on_double_click(self, event):
+        if event.button() == Qt.LeftButton:
+            self.double_clicked.emit(event.pos().x(), event.pos().y())
 
     def update_image(self, zoom_img):
         cv2.drawMarker(zoom_img, (zoom_img.shape[1]//2, zoom_img.shape[0]//2), (0, 0, 255),

@@ -529,6 +529,29 @@ class AlviumCameraManager:
         if self._cam:
             self._cam.get_feature_by_name("ExposureAuto").set(mode)
 
+    def set_white_balance_kelvin(self, kelvin: int):
+        """Set white balance from a colour temperature in Kelvin.
+
+        Maps Kelvin → (R_gain, B_gain) relative to G using a linear
+        approximation of the Planckian locus.  G ratio stays at 1.0.
+          2800 K (warm/tungsten): R≈2.2, B≈0.7
+          5500 K (daylight):      R≈1.2, B≈1.3
+          7500 K (cool/blue):     R≈0.8, B≈2.0
+        """
+        if not self._cam:
+            return
+        t = max(0.0, min(1.0, (kelvin - 2800) / (7500 - 2800)))
+        r_ratio = 2.2 - t * 1.4   # 2.2 → 0.8
+        b_ratio = 0.7 + t * 1.3   # 0.7 → 2.0
+        try:
+            self._cam.get_feature_by_name("BalanceWhiteAuto").set("Off")
+            for channel, ratio in (("Red", r_ratio), ("Green", 1.0), ("Blue", b_ratio)):
+                self._cam.get_feature_by_name("BalanceRatioSelector").set(channel)
+                self._cam.get_feature_by_name("BalanceRatio").set(float(ratio))
+            logger.info("WB set: %d K → R=%.2f G=1.00 B=%.2f", kelvin, r_ratio, b_ratio)
+        except Exception as exc:
+            logger.warning("Could not set white balance: %s", exc)
+
     # ------------------------------------------------------------------
     # Convenience: save a capture-mode frame to disk
     # ------------------------------------------------------------------

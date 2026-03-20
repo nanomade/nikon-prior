@@ -73,6 +73,13 @@ class FocusWorker(QObject):
 
     def _metric(self, img):
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+        # Normalise to the 4x-binned resolution so the metric values and
+        # autofocus parameters are consistent regardless of the current
+        # binning factor.  Without this a 2464×2056 (1x) frame takes ~16×
+        # longer to compute and produces very different metric magnitudes.
+        _TARGET_W, _TARGET_H = 616, 514
+        if gray.shape[1] > _TARGET_W or gray.shape[0] > _TARGET_H:
+            gray = cv2.resize(gray, (_TARGET_W, _TARGET_H), interpolation=cv2.INTER_AREA)
         m = self.p['metric']
         if m == 'LaplacianVariance':
             return float(cv2.Laplacian(gray, cv2.CV_64F).var())

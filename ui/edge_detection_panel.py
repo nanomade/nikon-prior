@@ -42,8 +42,14 @@ class AutomatedSequenceWorker(QThread):
         self.should_stop = True
 
     def _goto_stage_center(self):
-        self.motor_manager.move_absolute_units('X', 0.0)
-        self.motor_manager.move_absolute_units('Y', 0.0)
+        # Combined XY move avoids sending two sequential G commands
+        # (which move one axis then the other) and is safer when returning
+        # from a large offset.
+        if hasattr(self.motor_manager, 'move_absolute_xy_units'):
+            self.motor_manager.move_absolute_xy_units(0.0, 0.0, wait=True)
+        else:
+            self.motor_manager.move_absolute_units('X', 0.0)
+            self.motor_manager.move_absolute_units('Y', 0.0)
 
     def get_frame_intensity(self):
         try:

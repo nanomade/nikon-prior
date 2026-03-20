@@ -61,10 +61,10 @@ class LauncherWindow(QWidget):
             layout.addWidget(b)
 
         layout.addWidget(_heading("IMAGING"))
-        _btn("Open Preview",             self._open_preview)
+        _btn("Open Camera Preview",      self._open_preview)
         _btn("Open Imaging Controls",    self.controls.show)
         if self.file_save_panel:
-            _btn("File Save",            self.file_save_panel.show)
+            _btn("File Save Options",    self.file_save_panel.show)
         if self.layer_contrast_panel:
             _btn("Open Layer Contrast",  self.layer_contrast_panel.show)
         if self.flat_field_panel:
