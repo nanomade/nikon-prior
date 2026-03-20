@@ -64,6 +64,11 @@ class AlviumCameraManager:
         self._latest_frame: np.ndarray | None = None
         self._streaming: bool = False
 
+        # Software downscale applied after debayering when hardware binning is not
+        # available (camera implements BinningHorizontal as a sensor ROI crop).
+        # Factor 1 = no scaling.  Set by _apply_live_resolution.
+        self._software_scale: int = 1
+
         # Expose resolution so preview.py can read native_width / native_height
         self.native_width  = SENSOR_WIDTH  // DEFAULT_LIVE_FACTOR
         self.native_height = SENSOR_HEIGHT // DEFAULT_LIVE_FACTOR
@@ -283,10 +288,15 @@ class AlviumCameraManager:
         setting OffsetX/Y to (SENSOR-target)//2 centres the field of view so
         the optical axis stays at the image crosshair.
 
-        Sets self.live_is_true_binning:
-          True  — decimation or full-sensor binning (ppm ÷ factor for scale bar).
-          False — ROI crop (pixel density unchanged; ppm is unmodified).
+        Sets self.live_is_true_binning = True for all exit paths (because software
+        scaling is applied as a fallback so the full sensor FOV is always covered).
+        Sets self._software_scale to the factor when hardware full-FOV binning is
+        unavailable — the frame callback then downscales in software so every
+        binning level shows the same physical field of view.
         """
+        target_w = SENSOR_WIDTH  // factor
+        target_h = SENSOR_HEIGHT // factor
+
         if factor == 1:
             # Reset offsets first; then binning — order matters on some cameras
             # because changing OffsetX on a reduced-width image can go out of range.
@@ -301,28 +311,30 @@ class AlviumCameraManager:
                     cam.get_feature_by_name(feat).set(1)
                 except Exception:
                     pass
-            self.native_width  = SENSOR_WIDTH
-            self.native_height = SENSOR_HEIGHT
+            self._software_scale   = 1
+            self.native_width      = SENSOR_WIDTH
+            self.native_height     = SENSOR_HEIGHT
             self.live_is_true_binning = True
             logger.info("Live mode: full resolution (no binning)")
             return
-
-        target_w = SENSOR_WIDTH  // factor
-        target_h = SENSOR_HEIGHT // factor
 
         # Try hardware decimation first (true subsampling — full FOV preserved).
         try:
             cam.get_feature_by_name("DecimationHorizontal").set(factor)
             cam.get_feature_by_name("DecimationVertical").set(factor)
-            self.native_width  = target_w
-            self.native_height = target_h
-            self.live_is_true_binning = True   # decimation keeps full sensor FOV
+            self._software_scale   = 1
+            self.native_width      = target_w
+            self.native_height     = target_h
+            self.live_is_true_binning = True
             logger.info("Decimation %dx applied for live preview", factor)
             return
         except Exception:
-            logger.warning("Decimation %dx not supported, trying binning", factor)
+            logger.warning("Decimation %dx not supported, trying hardware binning", factor)
 
-        # Fall back to binning / ROI.
+        # Try hardware binning.  Some cameras (Alvium) implement BinningHorizontal
+        # as a sensor ROI crop rather than true full-sensor pixel averaging.
+        # We detect this by attempting to move OffsetX away from zero: if the
+        # camera accepts the change it is doing ROI; if not, it is true binning.
         try:
             for feat, val in (("BinningHorizontalMode", "Average"),
                                ("BinningVerticalMode",   "Average")):
@@ -333,48 +345,77 @@ class AlviumCameraManager:
             cam.get_feature_by_name("BinningHorizontal").set(factor)
             cam.get_feature_by_name("BinningVertical").set(factor)
 
-            # The Alvium (and some other cameras) implement BinningHorizontal as
-            # a top-left sensor ROI, not full-sensor pixel averaging.  Centre the
-            # crop so the optical axis falls at the middle of the output image.
-            offset_x = (SENSOR_WIDTH  - target_w) // 2
-            offset_y = (SENSOR_HEIGHT - target_h) // 2
-            roi_centred = False
+            # Test for ROI: try writing a non-zero OffsetX and read it back.
+            probe_ox = (SENSOR_WIDTH - target_w) // 2
+            is_roi = False
             try:
-                cam.get_feature_by_name("OffsetX").set(offset_x)
-                cam.get_feature_by_name("OffsetY").set(offset_y)
-                roi_centred = True
-            except Exception as exc:
-                logger.warning("Could not centre ROI (OffsetX/Y): %s", exc)
-
-            # Detect ROI vs true binning: if we successfully moved the offset
-            # away from zero the camera confirmed it is doing a crop.
-            try:
+                cam.get_feature_by_name("OffsetX").set(probe_ox)
                 actual_ox = cam.get_feature_by_name("OffsetX").get()
-                self.live_is_true_binning = (actual_ox == 0 and not roi_centred)
+                if actual_ox != 0:
+                    is_roi = True
+                    # Undo: reset offset so we use the full sensor
+                    cam.get_feature_by_name("OffsetX").set(0)
+                    try:
+                        cam.get_feature_by_name("OffsetY").set(0)
+                    except Exception:
+                        pass
             except Exception:
-                self.live_is_true_binning = not roi_centred
+                pass  # can't move OffsetX → probably true binning
 
-            self.native_width  = target_w
-            self.native_height = target_h
-            logger.info(
-                "Binning %dx applied: %s (%s)",
-                factor,
-                "centred ROI" if roi_centred else "top-left ROI",
-                "full-FOV binning" if self.live_is_true_binning else "reduced FOV",
-            )
+            if is_roi:
+                # Camera is doing ROI, not full-sensor binning.  Reset the camera
+                # to full resolution and apply the requested reduction in software
+                # so all binning levels cover the same physical field of view.
+                logger.warning(
+                    "BinningHorizontal=%d is ROI on this camera — "
+                    "using full-res + software %dx downsample for consistent FOV",
+                    factor, factor,
+                )
+                for feat in ("BinningHorizontal", "BinningVertical"):
+                    try:
+                        cam.get_feature_by_name(feat).set(1)
+                    except Exception:
+                        pass
+                self._software_scale   = factor
+                self.native_width      = target_w
+                self.native_height     = target_h
+                self.live_is_true_binning = True
+                logger.info(
+                    "Software %dx downsample: output %dx%d, full sensor FOV",
+                    factor, target_w, target_h,
+                )
+            else:
+                # True hardware binning — full sensor covered.
+                self._software_scale   = 1
+                self.native_width      = target_w
+                self.native_height     = target_h
+                self.live_is_true_binning = True
+                logger.info("Hardware binning %dx applied: full-sensor %dx%d", factor, target_w, target_h)
             return
-        except Exception as exc:
-            logger.warning("Binning %dx not supported (%s) — full resolution", factor, exc)
 
-        self.native_width  = SENSOR_WIDTH
-        self.native_height = SENSOR_HEIGHT
+        except Exception as exc:
+            logger.warning("Binning %dx not supported (%s) — software downscale fallback", factor, exc)
+
+        # Last resort: full resolution with software downscale.
+        self._software_scale   = factor
+        self.native_width      = target_w
+        self.native_height     = target_h
         self.live_is_true_binning = True
+        logger.info("Software %dx downsample fallback: %dx%d", factor, target_w, target_h)
+
+    def _apply_software_scale(self, img: np.ndarray) -> np.ndarray:
+        """Downsample img by self._software_scale using area averaging."""
+        s = self._software_scale
+        if s <= 1:
+            return img
+        h, w = img.shape[:2]
+        return cv2.resize(img, (w // s, h // s), interpolation=cv2.INTER_AREA)
 
     def _frame_callback(self, cam, stream, frame):
         """Vimba streaming callback — runs in Vimba's internal thread."""
         if frame.get_status() == vmbpy.FrameStatus.Complete:
             try:
-                debayered = self._debayer(frame)
+                debayered = self._apply_software_scale(self._debayer(frame))
                 with self._frame_lock:
                     self._latest_frame = debayered
             except Exception as exc:
@@ -404,7 +445,10 @@ class AlviumCameraManager:
         try:
             timeout = 5000 if self._mode == "capture" else 2000
             frame = self._cam.get_frame(timeout_ms=timeout)
-            return True, self._debayer(frame)
+            img = self._debayer(frame)
+            if self._mode == "live":
+                img = self._apply_software_scale(img)
+            return True, img
         except Exception as exc:
             logger.warning("Frame grab failed: %s", exc)
             return False, None

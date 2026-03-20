@@ -65,8 +65,8 @@ class PreviewWindow(QWidget):
         self.display_scale = (1.0, 1.0)
         self.last_mouse_pos = QPoint(self.native_width // 2, self.native_height // 2)
 
-        self.image_label.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        self.image_label.setFixedSize(self.native_width, self.native_height)
+        self.image_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.image_label.resize(self.native_width, self.native_height)
 
         # Laplacian bar — lives below the image, outside the image area
         self._lap_bar = QProgressBar()
@@ -87,7 +87,7 @@ class PreviewWindow(QWidget):
         layout.addWidget(self.image_label)
         layout.addLayout(lap_row)
         self.setLayout(layout)
-        self.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         self.measure_points = []
         self.show_crosshair = False
@@ -303,23 +303,22 @@ class PreviewWindow(QWidget):
 
     def set_native_zoom(self, flag):
         self.native_zoom = flag
-        self.image_label.setFixedSize(self.native_width, self.native_height)
-        self.adjustSize()
+        if flag:
+            # Snap the window to exact 1:1 pixel size; user can resize after.
+            self.image_label.resize(self.native_width, self.native_height)
+            self.adjustSize()
 
     def _on_binning_changed(self, factor: int):
         self.cap.set_live_binning(factor)
-        # live_is_true_binning=True  → camera uses full sensor, each pixel covers
-        #   more physical area → ppm shrinks by factor (scale bar / double-click correct).
-        # live_is_true_binning=False → camera does a sensor ROI crop, pixel density
-        #   is unchanged → ppm stays the same (_binning_factor=1).
-        if getattr(self.cap, 'live_is_true_binning', True):
-            self._binning_factor = factor
-        else:
-            self._binning_factor = 1
+        # camera_manager always delivers full-FOV output at the binned resolution
+        # (hardware binning or software downsample), so each output pixel always
+        # covers factor×factor sensor pixels → ppm divides by factor.
+        self._binning_factor = factor
         self.native_width  = self.cap.native_width
         self.native_height = self.cap.native_height
-        self.image_label.setFixedSize(self.native_width, self.native_height)
-        self.adjustSize()
+        # Do not resize the label — it is freely resizable by the user.
+        # update_frame always scales the camera frame to fill whatever size
+        # the window currently is, so scale-bar and double-click stay correct.
 
     def _set_auto_exposure(self, enabled):
         self.cap.set_auto_exposure(enabled)
