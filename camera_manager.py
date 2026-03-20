@@ -545,7 +545,7 @@ class AlviumCameraManager:
         b_ratio = 0.7 + t * 1.3   # 0.7 → 2.0
         try:
             self._cam.get_feature_by_name("BalanceWhiteAuto").set("Off")
-            for channel, ratio in (("Red", r_ratio), ("Green", 1.0), ("Blue", b_ratio)):
+            for channel, ratio in (("Red", r_ratio), ("Blue", b_ratio)):
                 self._cam.get_feature_by_name("BalanceRatioSelector").set(channel)
                 self._cam.get_feature_by_name("BalanceRatio").set(float(ratio))
             logger.info("WB set: %d K → R=%.2f G=1.00 B=%.2f", kelvin, r_ratio, b_ratio)

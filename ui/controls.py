@@ -77,9 +77,9 @@ class ControlWindow(QWidget):
         grid.addWidget(QLabel("WB Temp (K):"), 2, 0)
         wb_slider = QSlider(Qt.Horizontal)
         wb_slider.setRange(2800, 7500)
-        wb_slider.setValue(4600)
+        wb_slider.setValue(5300)
         wb_slider.setTickInterval(100)
-        wb_label = QLabel("4600 K")
+        wb_label = QLabel("5300 K")
         wb_label.setFixedWidth(55)
         def _on_wb(v):
             wb_label.setText(f"{v} K")
