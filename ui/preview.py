@@ -307,8 +307,15 @@ class PreviewWindow(QWidget):
         self.adjustSize()
 
     def _on_binning_changed(self, factor: int):
-        self._binning_factor = factor
         self.cap.set_live_binning(factor)
+        # live_is_true_binning=True  → camera uses full sensor, each pixel covers
+        #   more physical area → ppm shrinks by factor (scale bar / double-click correct).
+        # live_is_true_binning=False → camera does a sensor ROI crop, pixel density
+        #   is unchanged → ppm stays the same (_binning_factor=1).
+        if getattr(self.cap, 'live_is_true_binning', True):
+            self._binning_factor = factor
+        else:
+            self._binning_factor = 1
         self.native_width  = self.cap.native_width
         self.native_height = self.cap.native_height
         self.image_label.setFixedSize(self.native_width, self.native_height)

@@ -68,6 +68,12 @@ class AlviumCameraManager:
         self.native_width  = SENSOR_WIDTH  // DEFAULT_LIVE_FACTOR
         self.native_height = SENSOR_HEIGHT // DEFAULT_LIVE_FACTOR
 
+        # True when live mode uses genuine pixel binning / decimation (full FOV,
+        # each output pixel covers a larger physical area).  False when the camera
+        # implements "binning" as a sensor ROI crop (smaller FOV, same pixel density).
+        # preview.py uses this to decide whether to divide ppm by the binning factor.
+        self.live_is_true_binning: bool = True
+
     # ------------------------------------------------------------------
     # Connection
     # ------------------------------------------------------------------
@@ -93,6 +99,15 @@ class AlviumCameraManager:
             self._cam.get_feature_by_name('DeviceFirmwareVersion').get(),
         )
 
+        # Disable auto white-balance so that exposure changes do not alter colour.
+        # Many cameras default to Continuous auto-WB; fix it to Off immediately.
+        try:
+            self._cam.get_feature_by_name("BalanceWhiteAuto").set("Off")
+            logger.info("BalanceWhiteAuto set to Off")
+        except Exception as exc:
+            logger.warning("Could not disable BalanceWhiteAuto: %s", exc)
+
+        self._write_camera_info()
         self.set_live_mode()
         return True
 
@@ -176,7 +191,12 @@ class AlviumCameraManager:
 
         self._stop_streaming()
 
-        # Reset decimation and binning to full resolution
+        # Reset decimation and binning to full resolution; clear any ROI offset first.
+        for feat in ("OffsetX", "OffsetY"):
+            try:
+                cam.get_feature_by_name(feat).set(0)
+            except Exception:
+                pass
         for feat in ("DecimationHorizontal", "DecimationVertical",
                      "BinningHorizontal",   "BinningVertical"):
             try:
@@ -209,6 +229,44 @@ class AlviumCameraManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
+    def _write_camera_info(self):
+        """Write a JSON snapshot of camera capabilities to autofocus_logs/."""
+        import json
+        import datetime
+        import os
+
+        log_dir = os.path.join(os.path.dirname(__file__), 'autofocus_logs')
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            cam = self._cam
+
+            def _get(name):
+                try:
+                    return cam.get_feature_by_name(name).get()
+                except Exception as e:
+                    return f'<unavailable: {e}>'
+
+            info = {'timestamp': datetime.datetime.now().isoformat()}
+            for k in ('DeviceModelName', 'DeviceFirmwareVersion', 'DeviceSerialNumber',
+                      'Width', 'Height', 'OffsetX', 'OffsetY',
+                      'PixelFormat', 'BinningHorizontal', 'BinningVertical',
+                      'BalanceWhiteAuto', 'ExposureTime', 'Gain'):
+                info[k] = _get(k)
+
+            # Available pixel formats
+            try:
+                pf = cam.get_feature_by_name('PixelFormat')
+                info['AvailablePixelFormats'] = [str(e) for e in pf.get_available_entries()]
+            except Exception as e:
+                info['AvailablePixelFormats'] = f'<unavailable: {e}>'
+
+            path = os.path.join(log_dir, 'camera_info.json')
+            with open(path, 'w') as f:
+                json.dump(info, f, indent=2)
+            print(f"[Camera] Info written to {path}")
+        except Exception as exc:
+            logger.warning("Could not write camera_info.json: %s", exc)
+
     def _stop_streaming(self):
         if self._streaming and self._cam:
             try:
@@ -218,8 +276,25 @@ class AlviumCameraManager:
             self._streaming = False
 
     def _apply_live_resolution(self, cam, factor: int):
-        """Try decimation then binning for the requested factor."""
+        """Try decimation then binning; centre ROI if camera uses a sensor crop.
+
+        Some cameras (including the Alvium) implement BinningHorizontal as a
+        top-left sensor crop rather than true pixel averaging.  Explicitly
+        setting OffsetX/Y to (SENSOR-target)//2 centres the field of view so
+        the optical axis stays at the image crosshair.
+
+        Sets self.live_is_true_binning:
+          True  — decimation or full-sensor binning (ppm ÷ factor for scale bar).
+          False — ROI crop (pixel density unchanged; ppm is unmodified).
+        """
         if factor == 1:
+            # Reset offsets first; then binning — order matters on some cameras
+            # because changing OffsetX on a reduced-width image can go out of range.
+            for feat in ("OffsetX", "OffsetY"):
+                try:
+                    cam.get_feature_by_name(feat).set(0)
+                except Exception:
+                    pass
             for feat in ("DecimationHorizontal", "DecimationVertical",
                          "BinningHorizontal",   "BinningVertical"):
                 try:
@@ -228,41 +303,72 @@ class AlviumCameraManager:
                     pass
             self.native_width  = SENSOR_WIDTH
             self.native_height = SENSOR_HEIGHT
+            self.live_is_true_binning = True
             logger.info("Live mode: full resolution (no binning)")
             return
 
-        # Try decimation first
+        target_w = SENSOR_WIDTH  // factor
+        target_h = SENSOR_HEIGHT // factor
+
+        # Try hardware decimation first (true subsampling — full FOV preserved).
         try:
             cam.get_feature_by_name("DecimationHorizontal").set(factor)
             cam.get_feature_by_name("DecimationVertical").set(factor)
-            self.native_width  = SENSOR_WIDTH  // factor
-            self.native_height = SENSOR_HEIGHT // factor
+            self.native_width  = target_w
+            self.native_height = target_h
+            self.live_is_true_binning = True   # decimation keeps full sensor FOV
             logger.info("Decimation %dx applied for live preview", factor)
             return
         except Exception:
             logger.warning("Decimation %dx not supported, trying binning", factor)
 
-        # Fall back to binning
+        # Fall back to binning / ROI.
         try:
-            avg_ok = True
             for feat, val in (("BinningHorizontalMode", "Average"),
                                ("BinningVerticalMode",   "Average")):
                 try:
                     cam.get_feature_by_name(feat).set(val)
                 except Exception:
-                    avg_ok = False
+                    pass
             cam.get_feature_by_name("BinningHorizontal").set(factor)
             cam.get_feature_by_name("BinningVertical").set(factor)
-            self.native_width  = SENSOR_WIDTH  // factor
-            self.native_height = SENSOR_HEIGHT // factor
-            mode_str = "average" if avg_ok else "sum (average mode not supported)"
-            logger.info("Binning %dx (%s) applied for live preview", factor, mode_str)
+
+            # The Alvium (and some other cameras) implement BinningHorizontal as
+            # a top-left sensor ROI, not full-sensor pixel averaging.  Centre the
+            # crop so the optical axis falls at the middle of the output image.
+            offset_x = (SENSOR_WIDTH  - target_w) // 2
+            offset_y = (SENSOR_HEIGHT - target_h) // 2
+            roi_centred = False
+            try:
+                cam.get_feature_by_name("OffsetX").set(offset_x)
+                cam.get_feature_by_name("OffsetY").set(offset_y)
+                roi_centred = True
+            except Exception as exc:
+                logger.warning("Could not centre ROI (OffsetX/Y): %s", exc)
+
+            # Detect ROI vs true binning: if we successfully moved the offset
+            # away from zero the camera confirmed it is doing a crop.
+            try:
+                actual_ox = cam.get_feature_by_name("OffsetX").get()
+                self.live_is_true_binning = (actual_ox == 0 and not roi_centred)
+            except Exception:
+                self.live_is_true_binning = not roi_centred
+
+            self.native_width  = target_w
+            self.native_height = target_h
+            logger.info(
+                "Binning %dx applied: %s (%s)",
+                factor,
+                "centred ROI" if roi_centred else "top-left ROI",
+                "full-FOV binning" if self.live_is_true_binning else "reduced FOV",
+            )
             return
-        except Exception:
-            logger.warning("Binning %dx not supported either — full resolution", factor)
+        except Exception as exc:
+            logger.warning("Binning %dx not supported (%s) — full resolution", factor, exc)
 
         self.native_width  = SENSOR_WIDTH
         self.native_height = SENSOR_HEIGHT
+        self.live_is_true_binning = True
 
     def _frame_callback(self, cam, stream, frame):
         """Vimba streaming callback — runs in Vimba's internal thread."""

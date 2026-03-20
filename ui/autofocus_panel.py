@@ -59,6 +59,7 @@ class FocusWorker(QObject):
             log.update(extra)
             with open(path, 'w') as f:
                 json.dump(log, f, indent=2)
+            print(f"[AutoFocus] Log saved: {path}")
         except Exception:
             pass   # never crash the worker over a logging failure
 
