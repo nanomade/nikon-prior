@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+ui_settings.json
+autofocus_logs/
+*.log

@@ -111,9 +111,16 @@ class PreviewWindow(QWidget):
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)
 
+        # Imaging state — mirrored here so the info overlay can read them back.
+        self._info_exposure_us = 6000.0
+        self._info_gain_db     = 0.0
+        self._info_wb_kelvin   = 5300
+        self._info_auto_exp    = False
+        self._info_binning     = 4
+
         # controls.py emits exposure in µs (after the µs refactor).
-        controller.exposure_changed.connect(lambda v: self.cap.set_exposure_us(v))
-        controller.gain_changed.connect(lambda v: self.cap.set_gain_db(v))
+        controller.exposure_changed.connect(self._on_exposure_changed)
+        controller.gain_changed.connect(self._on_gain_changed)
         controller.auto_exposure_changed.connect(self._set_auto_exposure)
         controller.wb_temperature_changed.connect(self._set_wb_temperature)
         controller.magnification_changed.connect(self.set_magnification)
@@ -171,8 +178,19 @@ class PreviewWindow(QWidget):
         bar_um = {"5x": 200, "10x": 100, "20x": 50, "50x": 20, "100x": 5}.get(magnification, 100)
         return int(ppm * bar_um), f"{bar_um} um", ppm
 
+    def _on_exposure_changed(self, v):
+        self.cap.set_exposure_us(v)
+        self._info_exposure_us = v
+        self._hud_cache = []
+
+    def _on_gain_changed(self, v):
+        self.cap.set_gain_db(v)
+        self._info_gain_db = v
+        self._hud_cache = []
+
     def set_magnification(self, mag):
         self.magnification = mag
+        self._hud_cache = []
 
     def set_show_scale_bar(self, show):
         self.show_scale_bar = show
@@ -261,11 +279,31 @@ class PreviewWindow(QWidget):
                 _tick(cx, py, horiz=False, major=(abs(i) % 5 == 0))
 
     def _draw_hud(self, draw):
-        # Refresh cached motor positions every 10 frames (~3 Hz at 30 fps)
+        # Refresh cached lines every 10 frames (~3 Hz at 30 fps).
+        # Imaging params are cheap; motor queries need the serial bus so we
+        # throttle them at the same rate.
         self._hud_tick += 1
         if self._hud_tick % 10 == 1 or not self._hud_cache:
-            lines = [f"Mag: {self.magnification}",
-                     f"FPS: {self.measured_fps:.1f}"]
+            # --- Exposure: read actual value from camera when auto-exp is on ---
+            exp_us = self._info_exposure_us
+            if self._info_auto_exp:
+                try:
+                    ae = self.cap.get_exposure_us()
+                    if ae and ae > 0:
+                        exp_us = ae
+                except Exception:
+                    pass
+            exp_ms = exp_us / 1000.0
+            exp_str = (f"{exp_ms:.2f} ms  AUTO" if self._info_auto_exp
+                       else f"{exp_ms:.3f} ms")
+
+            lines = [
+                f"Mag: {self.magnification}   Bin: {self._info_binning}x",
+                f"Exp: {exp_str}",
+                f"Gain: {self._info_gain_db:.1f} dB   WB: {self._info_wb_kelvin} K",
+                f"FPS: {self.measured_fps:.1f}",
+            ]
+
             mm = self.motor_manager
             if mm:
                 for axis, fmt, unit in [
@@ -277,9 +315,11 @@ class PreviewWindow(QWidget):
                                      else f"{axis}: N/A")
                     except Exception:
                         lines.append(f"{axis}: err")
+
             if self.manip_controls is not None:
                 ht = self.manip_controls.height_display.text()
                 lines.append(ht)
+
             self._hud_cache = lines
 
         font, fs, ft = cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1
@@ -319,18 +359,24 @@ class PreviewWindow(QWidget):
         # (hardware binning or software downsample), so each output pixel always
         # covers factor×factor sensor pixels → ppm divides by factor.
         self._binning_factor = factor
+        self._info_binning   = factor
         self.native_width  = self.cap.native_width
         self.native_height = self.cap.native_height
+        self._hud_cache = []
         # Do not resize the label — it is freely resizable by the user.
         # update_frame always scales the camera frame to fill whatever size
         # the window currently is, so scale-bar and double-click stay correct.
 
     def _set_auto_exposure(self, enabled):
         self.cap.set_auto_exposure(enabled)
+        self._info_auto_exp = enabled
+        self._hud_cache = []
 
     def _set_wb_temperature(self, kelvin):
         if hasattr(self.cap, 'set_white_balance_kelvin'):
             self.cap.set_white_balance_kelvin(kelvin)
+        self._info_wb_kelvin = kelvin
+        self._hud_cache = []
 
     def start_color_pick(self):
         """Activate eyedropper: next click samples the colour at that position."""

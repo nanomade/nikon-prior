@@ -9,7 +9,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QTimer
 
-_PRESETS_FILE = "focus_presets.json"
+_PRESETS_FILE    = "focus_presets.json"
+_SETTINGS_FILE   = "ui_settings.json"
 _EXP_MIN_US = 10         # 10 µs minimum (0.01 ms)
 _EXP_MAX_US = 1_000_000  # 1 s maximum
 _OBJECTIVES = ["5x", "10x", "20x", "50x", "100x"]
@@ -71,25 +72,25 @@ class ControlWindow(QWidget):
         grid.addWidget(self._exp_text, 0, 2)
 
         # --- Gain ---
-        self.add_slider(grid, "Gain", 0, 100, 0, 1, controller.gain_changed)
+        _, self._gain_slider = self.add_slider(grid, "Gain", 0, 100, 0, 1, controller.gain_changed)
 
         # --- White Balance Temperature ---
         grid.addWidget(QLabel("WB Temp (K):"), 2, 0)
-        wb_slider = QSlider(Qt.Horizontal)
-        wb_slider.setRange(2800, 7500)
-        wb_slider.setValue(5300)
-        wb_slider.setTickInterval(100)
+        self._wb_slider = QSlider(Qt.Horizontal)
+        self._wb_slider.setRange(2800, 7500)
+        self._wb_slider.setValue(5300)
+        self._wb_slider.setTickInterval(100)
         wb_label = QLabel("5300 K")
         wb_label.setFixedWidth(55)
         def _on_wb(v):
             wb_label.setText(f"{v} K")
             controller.wb_temperature_changed.emit(v)
-        wb_slider.valueChanged.connect(_on_wb)
-        grid.addWidget(wb_slider, 2, 1)
+        self._wb_slider.valueChanged.connect(_on_wb)
+        grid.addWidget(self._wb_slider, 2, 1)
         grid.addWidget(wb_label, 2, 2)
 
         # --- Auto Exposure ---
-        auto_exp_check = QCheckBox("Auto Exposure")
+        self._auto_exp_check = auto_exp_check = QCheckBox("Auto Exposure")
         auto_exp_check.setChecked(False)
 
         def _on_auto_exposure(state):
@@ -161,14 +162,14 @@ class ControlWindow(QWidget):
         full_xhair_check.stateChanged.connect(lambda state: controller.full_crosshair_changed.emit(state == Qt.Checked))
         grid.addWidget(full_xhair_check, 11, 0, 1, 2)
 
-        hud_check = QCheckBox("Show HUD")
+        hud_check = QCheckBox("Show Info")
         hud_check.setChecked(False)
         hud_check.stateChanged.connect(lambda state: controller.hud_changed.emit(state == Qt.Checked))
         grid.addWidget(hud_check, 12, 0, 1, 2)
 
         # --- Temporal averaging (flicker suppression) ---
         grid.addWidget(QLabel("Flicker averaging:"), 13, 0)
-        avg_spin = QSpinBox()
+        self._avg_spin = avg_spin = QSpinBox()
         avg_spin.setRange(1, 8)
         avg_spin.setValue(1)
         avg_spin.setSuffix(" frames")
@@ -181,7 +182,7 @@ class ControlWindow(QWidget):
 
         # --- Binning ---
         grid.addWidget(QLabel("Binning:"), 14, 0)
-        binning_selector = QComboBox()
+        self._binning_selector = binning_selector = QComboBox()
         binning_selector.addItems(["1x (full)", "2x", "4x"])
         # Connect before setCurrentText so the initial "4x" selection fires the signal
         binning_selector.currentTextChanged.connect(
@@ -212,6 +213,8 @@ class ControlWindow(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_status)
         self.timer.start(1000)
+
+        self._load_settings()
 
     # ------------------------------------------------------------------
     # Magnification-based exposure
@@ -280,4 +283,59 @@ class ControlWindow(QWidget):
         width = self.preview.native_width if self.preview.cap else 0
         height = self.preview.native_height if self.preview.cap else 0
         fps = getattr(self.preview, "measured_fps", 0.0)
-        self.status_label.setText(f"Resolution: {width} x {height}, FPS: {fps:.1f}")
+        bin_text = self._binning_selector.currentText().split()[0]  # "4x"
+        self.status_label.setText(
+            f"{width} x {height}  |  {bin_text}  |  {fps:.1f} fps")
+
+    # ------------------------------------------------------------------
+    # Settings persistence
+    # ------------------------------------------------------------------
+
+    def _load_settings(self):
+        try:
+            with open(_SETTINGS_FILE) as fh:
+                s = json.load(fh)
+        except Exception:
+            return
+
+        # Restore magnification first so mag-based preset doesn't overwrite exp
+        if "magnification" in s:
+            self._mag_selector.setCurrentText(s["magnification"])
+        if "mag_exp_preset" in s:
+            self._mag_exp_check.setChecked(s["mag_exp_preset"])
+
+        # Exposure — restore only when mag-based presets are off
+        if "exposure_us" in s and not self._mag_exp_check.isChecked():
+            self._exp_slider.setValue(_pos_from_exp(int(s["exposure_us"])))
+
+        if "gain" in s:
+            self._gain_slider.setValue(int(s["gain"]))
+        if "wb_kelvin" in s:
+            self._wb_slider.setValue(int(s["wb_kelvin"]))
+        if "auto_exposure" in s:
+            self._auto_exp_check.setChecked(bool(s["auto_exposure"]))
+        if "binning" in s:
+            self._binning_selector.setCurrentText(s["binning"])
+        if "flicker_avg" in s:
+            self._avg_spin.setValue(int(s["flicker_avg"]))
+
+    def _save_settings(self):
+        try:
+            s = {
+                "exposure_us":     _exp_from_pos(self._exp_slider.value()),
+                "gain":            self._gain_slider.value(),
+                "wb_kelvin":       self._wb_slider.value(),
+                "auto_exposure":   self._auto_exp_check.isChecked(),
+                "magnification":   self._mag_selector.currentText(),
+                "mag_exp_preset":  self._mag_exp_check.isChecked(),
+                "binning":         self._binning_selector.currentText(),
+                "flicker_avg":     self._avg_spin.value(),
+            }
+            with open(_SETTINGS_FILE, "w") as fh:
+                json.dump(s, fh, indent=2)
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        self._save_settings()
+        super().closeEvent(event)
