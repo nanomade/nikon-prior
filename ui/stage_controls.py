@@ -514,13 +514,17 @@ class PositionManagerWindow(QWidget):
     def _get_stage_values(self) -> dict:
         sc = self.stage_controls
         try:
+            x_mm = sc.motor_manager.get_position_units("X") or 0.0
+            y_mm = sc.motor_manager.get_position_units("Y") or 0.0
             z_mm = sc.motor_manager.get_position_units("Z") or 0.0
         except Exception:
+            x_mm = sc.stage_x_slider.value() / _UM_PER_MM
+            y_mm = sc.stage_y_slider.value() / _UM_PER_MM
             z_mm = 0.0
         return {
-            "X": sc.stage_x_slider.value(),
-            "Y": sc.stage_y_slider.value(),
-            "Z": int(round(z_mm * 1000)),  # store as µm for table display
+            "X": int(round(x_mm * _UM_PER_MM)),
+            "Y": int(round(y_mm * _UM_PER_MM)),
+            "Z": int(round(z_mm * _UM_PER_MM)),
         }
 
     def _set_stage_values(self, pos: dict):
