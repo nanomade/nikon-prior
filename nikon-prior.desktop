@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Nikon-Prior Microscope Control
+GenericName=Microscope Controller
+Comment=Control the Nikon L200ND with Prior ProScan III stage and Alvium camera
+Exec=/bin/bash %k/../scripts/launch.sh
+Icon=/opt/nikon-prior/assets/nikon-prior.svg
+Terminal=false
+Categories=Science;Education;
+Keywords=microscope;camera;stage;imaging;prior;nikon;
+StartupWMClass=main
+StartupNotify=true

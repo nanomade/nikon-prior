@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Nikon-Prior Quick Reference
+GenericName=Microscope Help
+Comment=Open the quick-start guide for Nikon-Prior Microscope Control
+Exec=/bin/bash %k/../scripts/open_help.sh
+Icon=/opt/nikon-prior/assets/nikon-prior-help.svg
+Terminal=false
+Categories=Science;Education;Documentation;
+Keywords=microscope;help;manual;reference;nikon;prior;
+StartupNotify=false
