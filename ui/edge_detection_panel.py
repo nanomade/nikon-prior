@@ -99,14 +99,14 @@ class AutomatedSequenceWorker(QThread):
                     for _ in range(5):
                         if self.should_stop:
                             break
-                        self.motor_manager.move_units(axis, step_size_mm)
+                        self.motor_manager.move_units(axis, step_size_mm, wait=False)
                         time.sleep(self.move_delay)
                     return edge_pos
             else:
                 consecutive_dark = 0
 
             if not self.should_stop and not edge_detected:
-                self.motor_manager.move_units(axis, step_size_mm)
+                self.motor_manager.move_units(axis, step_size_mm, wait=False)
                 time.sleep(self.move_delay)
                 step_count += 1
 

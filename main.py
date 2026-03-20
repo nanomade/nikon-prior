@@ -164,6 +164,9 @@ class Application:
         self.launcher.destroyed.connect(self.app.quit)
         self.preview.show()
         self.launcher.show()
+        self.controls.show()
+        self.stage_controls.show()
+        self.file_save_panel.show()
         sys.exit(self.app.exec_())
 
 

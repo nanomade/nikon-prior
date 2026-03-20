@@ -666,6 +666,18 @@ class PreviewWindow(QWidget):
         except Exception:
             pass
             
+    def get_clean_frame(self):
+        """Return the latest frame without any UI annotations (scale bar, crosshair, etc).
+        Flat-field correction is applied but overlays are not.  Full sensor resolution."""
+        frame = getattr(self, '_last_raw_frame', None)
+        if frame is not None:
+            return frame.copy()
+        # Fallback: grab directly from camera
+        if self.cap is not None and self.cap.connected():
+            ok, frame = self.cap.read()
+            return frame if ok else None
+        return None
+
     def get_latest_frame(self):
         # Returns a copy of the last output frame, or None if not yet available
         return getattr(self, 'last_output_frame', None)

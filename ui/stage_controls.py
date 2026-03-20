@@ -239,14 +239,14 @@ class StageControlWindow(QWidget):
         full_layout = QVBoxLayout()
         full_layout.addLayout(main_layout)
 
-        self.value_display = QLabel("Setpoint: X: 0 µm,  Y: 0 µm")
+        self.value_display = QLabel("Setpoint  X:   0.0000 mm   Y:   0.0000 mm")
         self.value_display.setAlignment(Qt.AlignCenter)
-        self.value_display.setFont(QFont("Arial", 11, QFont.Bold))
+        self.value_display.setFont(QFont("Courier New", 11, QFont.Bold))
         full_layout.addWidget(self.value_display)
 
-        self.unit_display = QLabel("Motor: X: N/A,  Y: N/A,  Z: N/A (rel)")
+        self.unit_display = QLabel("Motor     X:        N/A   Y:        N/A   Z:        N/A (rel)")
         self.unit_display.setAlignment(Qt.AlignCenter)
-        self.unit_display.setFont(QFont("Arial", 11))
+        self.unit_display.setFont(QFont("Courier New", 11))
         full_layout.addWidget(self.unit_display)
 
         btn_row = QHBoxLayout()
@@ -287,27 +287,27 @@ class StageControlWindow(QWidget):
     # ------------------------------------------------------------------
 
     def update_all_displays(self):
-        # Readout labels
-        x_um = self.stage_x_slider.value()
-        y_um = self.stage_y_slider.value()
+        # Readout labels — both in mm, fixed-width so columns align
+        x_mm = self.stage_x_slider.value() / _UM_PER_MM
+        y_mm = self.stage_y_slider.value() / _UM_PER_MM
         self.value_display.setText(
-            f"Setpoint:  X: {x_um} µm    Y: {y_um} µm"
+            f"Setpoint  X: {x_mm:+9.4f} mm   Y: {y_mm:+9.4f} mm"
         )
 
-        def _fmt(val, unit):
+        def _fmt(val):
             try:
-                return f"{val:.4f} {unit}" if val is not None else "N/A"
+                return f"{val:+9.4f} mm" if val is not None else "      N/A   "
             except Exception:
-                return "N/A"
+                return "      N/A   "
 
         try:
             mx = self.motor_manager.get_position_units("X")
             my = self.motor_manager.get_position_units("Y")
             mz = self.motor_manager.get_position_units("Z")
             self.unit_display.setText(
-                f"Motor:  X: {_fmt(mx, 'mm')}    Y: {_fmt(my, 'mm')}    Z: {_fmt(mz, 'mm')} (rel)"
+                f"Motor     X: {_fmt(mx)}   Y: {_fmt(my)}   Z: {_fmt(mz)} (rel)"
             )
-            self.z_pos_label.setText(f"Z: {_fmt(mz, 'mm')} (rel)")
+            self.z_pos_label.setText(f"Z: {_fmt(mz)} (rel)")
         except Exception:
             pass
 

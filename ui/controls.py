@@ -201,11 +201,11 @@ class ControlWindow(QWidget):
 
         save_view_button = QPushButton("Save View")
         save_view_button.clicked.connect(self.save_view)
-        grid.addWidget(save_view_button, 17, 0, 1, 2)
+        grid.addWidget(save_view_button, 17, 0, 1, 3)
 
-        capture_frame_button = QPushButton("Capture Frame")
+        capture_frame_button = QPushButton("Capture Frame (no annotations)")
         capture_frame_button.clicked.connect(self.capture_frame)
-        grid.addWidget(capture_frame_button, 18, 0, 1, 2)
+        grid.addWidget(capture_frame_button, 18, 0, 1, 3)
 
         layout.addLayout(grid)
         self.setLayout(layout)
@@ -271,7 +271,7 @@ class ControlWindow(QWidget):
         filename, _ = QFileDialog.getSaveFileName(self, "Capture Frame", f"frame_{timestamp}.png", "PNG Files (*.png)")
         if filename:
             import cv2
-            frame = self.preview.get_frame()
+            frame = self.preview.get_clean_frame()
             if frame is not None:
                 cv2.imwrite(filename, frame)
 
