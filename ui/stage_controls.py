@@ -350,7 +350,7 @@ class StageControlWindow(QWidget):
                     cv2.putText(img, label, (lx, ly), font, scale, (255, 255, 255), thick)
 
         # Current position dot
-        cx, cy = _um_to_px(x_um, y_um)
+        cx, cy = _um_to_px(int(x_mm * _UM_PER_MM), int(y_mm * _UM_PER_MM))
         cv2.circle(img, (cx, cy), 6, (0, 180, 0), -1)
         cv2.circle(img, (cx, cy), 6, (0, 0, 0), 1)
 
