@@ -26,6 +26,10 @@ _X_MAX_MM_DEFAULT =  127.5
 _Y_MIN_MM_DEFAULT = -107.5
 _Y_MAX_MM_DEFAULT =  107.5
 
+# Z jog button step size (µm) per objective magnification.
+# Higher mag → shallower depth of focus → smaller step.
+_Z_JOG_UM = {"5x": 40, "10x": 20, "20x": 10, "50x": 4, "100x": 2}
+
 
 
 class ZVelocitySlider(QSlider):
@@ -123,10 +127,14 @@ class StageControlWindow(QWidget):
         self.position_manager = None  # injected after construction
         self.focus_panel = None       # injected after construction
 
+        self._z_jog_step_um = 20   # updated by magnification signal; default = 10x value
         self._init_axis_limits()
         self._build_ui()
         self._sync_sliders_to_motors()
         self.update_all_displays()
+        # Connect magnification changes so Z jog step scales with objective
+        if hasattr(preview, 'controller'):
+            preview.controller.magnification_changed.connect(self._on_mag_changed)
 
         self._mini_update_timer = QTimer(self)
         self._mini_update_timer.timeout.connect(self.update_all_displays)
@@ -202,9 +210,9 @@ class StageControlWindow(QWidget):
         z_panel.setAlignment(Qt.AlignHCenter)
         z_panel.addWidget(QLabel("Z fine focus"))
 
-        z_plus_btn = QPushButton("Z+")
-        z_plus_btn.clicked.connect(lambda: self.jog_axis("Z", 10))
-        z_panel.addWidget(z_plus_btn)
+        self._z_plus_btn = QPushButton("Z+")
+        self._z_plus_btn.clicked.connect(lambda: self.jog_axis("Z", self._z_jog_step_um))
+        z_panel.addWidget(self._z_plus_btn)
 
         self.z_velocity_slider = ZVelocitySlider()
         self.z_velocity_slider.setToolTip(
@@ -213,9 +221,13 @@ class StageControlWindow(QWidget):
         )
         z_panel.addWidget(self.z_velocity_slider)
 
-        z_minus_btn = QPushButton("Z-")
-        z_minus_btn.clicked.connect(lambda: self.jog_axis("Z", -10))
-        z_panel.addWidget(z_minus_btn)
+        self._z_minus_btn = QPushButton("Z-")
+        self._z_minus_btn.clicked.connect(lambda: self.jog_axis("Z", -self._z_jog_step_um))
+        z_panel.addWidget(self._z_minus_btn)
+
+        self._z_step_label = QLabel(f"step: {self._z_jog_step_um} µm")
+        self._z_step_label.setAlignment(Qt.AlignCenter)
+        z_panel.addWidget(self._z_step_label)
 
         self.z_pos_label = QLabel("Z: 0.0000 mm")
         self.z_pos_label.setAlignment(Qt.AlignCenter)
@@ -389,6 +401,11 @@ class StageControlWindow(QWidget):
             if axis in sliders:
                 sliders[axis].setValue(sliders[axis].value() + steps_um)
 
+    def _on_mag_changed(self, mag: str):
+        """Scale Z jog button step to match the objective depth of focus."""
+        self._z_jog_step_um = _Z_JOG_UM.get(mag, 10)
+        self._z_step_label.setText(f"step: {self._z_jog_step_um} µm")
+
     def _zero_here(self):
         """Tell the ProScan III that the current position is the origin."""
         try:
@@ -403,8 +420,13 @@ class StageControlWindow(QWidget):
 
     def goto_zero(self):
         """Move XY to origin; Z returns to its last-zeroed position."""
+        self.stage_x_slider.blockSignals(True)
+        self.stage_y_slider.blockSignals(True)
         self.stage_x_slider.setValue(0)
         self.stage_y_slider.setValue(0)
+        self.stage_x_slider.blockSignals(False)
+        self.stage_y_slider.blockSignals(False)
+        self._move_xy(0.0, 0.0)
         try:
             self.motor_manager.move_absolute_units("Z", 0.0, wait=False)
         except Exception as exc:
@@ -504,8 +526,17 @@ class PositionManagerWindow(QWidget):
 
     def _set_stage_values(self, pos: dict):
         sc = self.stage_controls
+        x_mm = pos["X"] / _UM_PER_MM
+        y_mm = pos["Y"] / _UM_PER_MM
+        # Update sliders without triggering individual axis moves
+        sc.stage_x_slider.blockSignals(True)
+        sc.stage_y_slider.blockSignals(True)
         sc.stage_x_slider.setValue(pos["X"])
         sc.stage_y_slider.setValue(pos["Y"])
+        sc.stage_x_slider.blockSignals(False)
+        sc.stage_y_slider.blockSignals(False)
+        # Single combined XY move
+        sc._move_xy(x_mm, y_mm)
         # Z is relative; recalling a saved position means going to that Z
         try:
             sc.motor_manager.move_absolute_units("Z", pos.get("Z", 0) / 1000.0, wait=False)

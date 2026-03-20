@@ -158,12 +158,20 @@ class FlatFieldPanel(QWidget):
         mm = self.motor_manager
         frames = []
 
-        # Record start position so we can return afterward
-        x0 = mm.get_position_units('X')
-        y0 = mm.get_position_units('Y')
+        # Record start position so we can return afterward.
+        # get_position_units may return None if the stage is in mock mode.
+        x0 = mm.get_position_units('X') or 0.0
+        y0 = mm.get_position_units('Y') or 0.0
 
         # Track position ourselves — don't rely on get_position_units accuracy
         cur_x, cur_y = x0, y0
+
+        def _move_rel(dx, dy):
+            if hasattr(mm, 'move_relative_xy_units'):
+                mm.move_relative_xy_units(dx, dy)
+            else:
+                mm.move_units('X', dx)
+                mm.move_units('Y', dy)
 
         try:
             for i in range(n):
@@ -173,8 +181,7 @@ class FlatFieldPanel(QWidget):
                 # Move to a random offset anchored to the start position
                 tx = x0 + random.uniform(-rng_mm, rng_mm)
                 ty = y0 + random.uniform(-rng_mm, rng_mm)
-                mm.move_units('X', tx - cur_x)
-                mm.move_units('Y', ty - cur_y)
+                _move_rel(tx - cur_x, ty - cur_y)
                 cur_x, cur_y = tx, ty
 
                 # Wait for stage to settle, then grab a fresh frame directly
@@ -189,8 +196,7 @@ class FlatFieldPanel(QWidget):
 
         finally:
             # Always return to the starting position
-            mm.move_units('X', x0 - cur_x)
-            mm.move_units('Y', y0 - cur_y)
+            _move_rel(x0 - cur_x, y0 - cur_y)
 
         if not frames:
             self._build_done.emit(None)

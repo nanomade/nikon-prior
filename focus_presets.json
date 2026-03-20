@@ -1,0 +1,10 @@
+{
+  "_comment": "Exposure defaults in microseconds per objective. Anchored on 10x=7ms and 100x=60ms, log-interpolated for intermediate magnifications.",
+  "exposure_defaults": {
+    "5x":   3500,
+    "10x":  7000,
+    "20x":  13000,
+    "50x":  30000,
+    "100x": 60000
+  }
+}

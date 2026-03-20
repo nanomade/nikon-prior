@@ -67,7 +67,7 @@ class ControlWindow(QWidget):
 
         self._exp_slider.valueChanged.connect(_on_exp_slider)
         self._exp_text.returnPressed.connect(_on_exp_text_entered)
-        self._exp_slider.setValue(_pos_from_exp(6000))  # 6000 µs = 6 ms default at 10x
+        self._exp_slider.setValue(_pos_from_exp(7000))  # 7000 µs = 7 ms default at 10x
         grid.addWidget(self._exp_slider, 0, 1)
         grid.addWidget(self._exp_text, 0, 2)
 

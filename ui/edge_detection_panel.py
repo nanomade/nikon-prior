@@ -41,15 +41,13 @@ class AutomatedSequenceWorker(QThread):
     def stop(self):
         self.should_stop = True
 
-    def _goto_stage_center(self):
-        # Combined XY move avoids sending two sequential G commands
-        # (which move one axis then the other) and is safer when returning
-        # from a large offset.
+    def _goto_home(self, home_x, home_y):
+        """Return stage to the position recorded at the start of the run."""
         if hasattr(self.motor_manager, 'move_absolute_xy_units'):
-            self.motor_manager.move_absolute_xy_units(0.0, 0.0, wait=True)
+            self.motor_manager.move_absolute_xy_units(home_x, home_y, wait=True)
         else:
-            self.motor_manager.move_absolute_units('X', 0.0)
-            self.motor_manager.move_absolute_units('Y', 0.0)
+            self.motor_manager.move_absolute_units('X', home_x, wait=True)
+            self.motor_manager.move_absolute_units('Y', home_y, wait=True)
 
     def get_frame_intensity(self):
         try:
@@ -60,38 +58,6 @@ class AutomatedSequenceWorker(QThread):
             return float(np.mean(gray))
         except Exception:
             return 0
-
-    def test_wafer_vs_background_intensity(self):
-        self.progress.emit("Measuring centre intensity…", 5)
-        try:
-            self._goto_stage_center()
-            time.sleep(2)
-            center_intensity = self.get_frame_intensity()
-            self.progress.emit(f"Centre intensity: {center_intensity:.1f}", 10)
-
-            self.motor_manager.move_absolute_units('X', 10.0)
-            time.sleep(1)
-            outside_intensity = self.get_frame_intensity()
-            self.progress.emit(f"X=10 intensity: {outside_intensity:.1f}", 15)
-            self._goto_stage_center()
-            time.sleep(1)
-
-            if abs(center_intensity - outside_intensity) > 50:
-                optimal = (center_intensity + outside_intensity) / 2
-                self.progress.emit(
-                    f"Auto threshold: {optimal:.1f} "
-                    f"(wafer={center_intensity:.0f}, bg={outside_intensity:.0f})", 20)
-            else:
-                optimal = center_intensity * 0.5
-                self.progress.emit(
-                    f"Auto threshold: {optimal:.1f} (relative; background not found at X=10)", 20)
-
-            return {'optimal_threshold': optimal,
-                    'wafer_intensity': center_intensity,
-                    'background_intensity': outside_intensity}
-        except Exception as exc:
-            print(f"[EdgeDetect] threshold test error: {exc}")
-            return None
 
     def get_position_mm(self, axis):
         try:
@@ -150,24 +116,24 @@ class AutomatedSequenceWorker(QThread):
 
     def run(self):
         try:
-            self.progress.emit("Moving to stage centre…", 10)
-            self._goto_stage_center()
-            time.sleep(2)
+            # Record the current position — we start searching from here, and
+            # return here between edge searches.  No move to (0,0) is ever made.
+            home_x = self.get_position_mm('X') or 0.0
+            home_y = self.get_position_mm('Y') or 0.0
+            self.progress.emit(
+                f"Start position: ({home_x:+.3f}, {home_y:+.3f}) mm", 5)
 
             center_intensity = self.get_frame_intensity()
-            self.progress.emit(f"Centre intensity: {center_intensity:.1f}", 15)
+            self.progress.emit(f"Intensity at start: {center_intensity:.1f}", 15)
 
             if self.auto_threshold and self.intensity_threshold is None:
-                self.progress.emit("Calculating auto threshold…", 25)
-                result = self.test_wafer_vs_background_intensity()
-                if result:
-                    self.intensity_threshold = result['optimal_threshold']
-                    self.progress.emit(f"Threshold: {self.intensity_threshold:.1f}", 30)
-                else:
-                    self.intensity_threshold = 100
-                    self.progress.emit(f"Using default threshold: {self.intensity_threshold}", 30)
+                # Use half of current frame intensity — assumes we are on the wafer
+                self.intensity_threshold = max(10.0, center_intensity * 0.5)
+                self.progress.emit(
+                    f"Auto threshold: {self.intensity_threshold:.1f} "
+                    f"(50% of current {center_intensity:.0f})", 25)
             else:
-                self.progress.emit(f"Threshold: {self.intensity_threshold}", 30)
+                self.progress.emit(f"Threshold: {self.intensity_threshold}", 25)
 
             edges_found = {}
             search_pattern = [
@@ -176,8 +142,8 @@ class AutomatedSequenceWorker(QThread):
                 ('Y', 'y_positive',  abs(self.step_size)),
                 ('Y', 'y_negative', -abs(self.step_size)),
             ]
-            progress_per_axis = 60 // len(search_pattern)
-            current_progress = 40
+            progress_per_axis = 65 // len(search_pattern)
+            current_progress = 30
 
             for axis, edge_key, step_size in search_pattern:
                 if self.should_stop:
@@ -189,13 +155,13 @@ class AutomatedSequenceWorker(QThread):
                     self.progress.emit(f"{edge_key}: {edge_pos:+.3f} mm", current_progress + 10)
                 else:
                     self.progress.emit(f"{edge_key}: not found", current_progress + 10)
-                self._goto_stage_center()
-                time.sleep(1)
+                self._goto_home(home_x, home_y)
+                time.sleep(0.5)
                 current_progress += progress_per_axis
 
             if not self.should_stop:
-                self._goto_stage_center()
-                time.sleep(1)
+                self._goto_home(home_x, home_y)
+                time.sleep(0.5)
 
             all_keys = ('x_negative', 'x_positive', 'y_negative', 'y_positive')
             if all(e in edges_found for e in all_keys):
