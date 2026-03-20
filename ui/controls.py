@@ -148,18 +148,26 @@ class ControlWindow(QWidget):
         self.crosshair_check.stateChanged.connect(lambda state: controller.crosshair_visible_changed.emit(state == Qt.Checked))
         grid.addWidget(self.crosshair_check, 9, 0, 1, 2)
 
+        zoom_cursor_check = QCheckBox("Zoom Under Cursor")
+        zoom_cursor_check.setChecked(False)
+        zoom_cursor_check.setToolTip(
+            "Show a live zoom window that follows the mouse cursor\n"
+            "over the camera preview.")
+        zoom_cursor_check.stateChanged.connect(lambda state: controller.zoom_under_cursor_changed.emit(state == Qt.Checked))
+        grid.addWidget(zoom_cursor_check, 10, 0, 1, 2)
+
         full_xhair_check = QCheckBox("Full-Screen Crosshair + Ticks")
         full_xhair_check.setChecked(False)
         full_xhair_check.stateChanged.connect(lambda state: controller.full_crosshair_changed.emit(state == Qt.Checked))
-        grid.addWidget(full_xhair_check, 10, 0, 1, 2)
+        grid.addWidget(full_xhair_check, 11, 0, 1, 2)
 
         hud_check = QCheckBox("Show HUD")
         hud_check.setChecked(False)
         hud_check.stateChanged.connect(lambda state: controller.hud_changed.emit(state == Qt.Checked))
-        grid.addWidget(hud_check, 11, 0, 1, 2)
+        grid.addWidget(hud_check, 12, 0, 1, 2)
 
         # --- Temporal averaging (flicker suppression) ---
-        grid.addWidget(QLabel("Flicker averaging:"), 12, 0)
+        grid.addWidget(QLabel("Flicker averaging:"), 13, 0)
         avg_spin = QSpinBox()
         avg_spin.setRange(1, 8)
         avg_spin.setValue(1)
@@ -169,10 +177,10 @@ class ControlWindow(QWidget):
             "Suppresses 50/60 Hz AC lighting flicker and reduces noise.\n"
             "1 = off.  Try 3–4 for fluorescent/LED ambient light.")
         avg_spin.valueChanged.connect(preview.set_temporal_average)
-        grid.addWidget(avg_spin, 12, 1, 1, 2)
+        grid.addWidget(avg_spin, 13, 1, 1, 2)
 
         # --- Binning ---
-        grid.addWidget(QLabel("Binning:"), 13, 0)
+        grid.addWidget(QLabel("Binning:"), 14, 0)
         binning_selector = QComboBox()
         binning_selector.addItems(["1x (full)", "2x", "4x"])
         # Connect before setCurrentText so the initial "4x" selection fires the signal
@@ -180,23 +188,23 @@ class ControlWindow(QWidget):
             lambda t: controller.binning_changed.emit(int(t.split("x")[0]))
         )
         binning_selector.setCurrentText("4x")
-        grid.addWidget(binning_selector, 13, 1, 1, 2)
+        grid.addWidget(binning_selector, 14, 1, 1, 2)
 
         native_zoom_check = QCheckBox("Native Zoom (1:1)")
         native_zoom_check.setChecked(False)
         native_zoom_check.stateChanged.connect(lambda state: controller.native_zoom_toggled.emit(state == Qt.Checked))
-        grid.addWidget(native_zoom_check, 14, 0, 1, 2)
+        grid.addWidget(native_zoom_check, 15, 0, 1, 2)
 
         self.status_label = QLabel("Resolution: ? x ?, FPS: ?")
-        grid.addWidget(self.status_label, 15, 0, 1, 2)
+        grid.addWidget(self.status_label, 16, 0, 1, 2)
 
         save_view_button = QPushButton("Save View")
         save_view_button.clicked.connect(self.save_view)
-        grid.addWidget(save_view_button, 16, 0, 1, 2)
+        grid.addWidget(save_view_button, 17, 0, 1, 2)
 
         capture_frame_button = QPushButton("Capture Frame")
         capture_frame_button.clicked.connect(self.capture_frame)
-        grid.addWidget(capture_frame_button, 17, 0, 1, 2)
+        grid.addWidget(capture_frame_button, 18, 0, 1, 2)
 
         layout.addLayout(grid)
         self.setLayout(layout)

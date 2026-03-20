@@ -125,12 +125,14 @@ class PreviewWindow(QWidget):
         controller.hud_changed.connect(self.set_hud)
         controller.native_zoom_toggled.connect(self.set_native_zoom)
         controller.binning_changed.connect(self._on_binning_changed)
+        controller.zoom_under_cursor_changed.connect(self.set_zoom_under_cursor)
 
         self.scale_bar_color = "White"
         self.show_scale_bar = True
         self.magnification = "5x"
         self.native_zoom = False
         self._binning_factor = 1
+        self.zoom_under_cursor = False
 
     def track_mouse(self, event: QMouseEvent):
         self.last_mouse_pos = event.pos()
@@ -295,10 +297,14 @@ class PreviewWindow(QWidget):
                         font, fs, (255, 255, 255), ft)
 
     def _update_zoom_visibility(self):
-        if self.show_crosshair or (self.measure_mode and len(self.measure_points) < 2):
+        if self.show_crosshair or self.zoom_under_cursor or (self.measure_mode and len(self.measure_points) < 2):
             self.zoom_window.show()
         else:
             self.zoom_window.hide()
+
+    def set_zoom_under_cursor(self, enabled: bool):
+        self.zoom_under_cursor = enabled
+        self._update_zoom_visibility()
 
     def set_native_zoom(self, flag):
         self.native_zoom = flag
@@ -537,13 +543,13 @@ class PreviewWindow(QWidget):
             sb = self.get_scale_bar_pixels(self.magnification)
             if sb:
                 dist_um = dist_px / sb[2]
-                # ±1 px positional error → distance uncertainty in µm
+                # +/-1 px positional error -> distance uncertainty in um
                 dist_err_um = 1.0 / sb[2]
-                dist_label = f"{dist_px:.1f} \u00b1 1 px  /  {dist_um:.1f} \u00b1 {dist_err_um:.1f} \u00b5m"
+                dist_label = f"{dist_px:.1f} +/- 1 px  /  {dist_um:.1f} +/- {dist_err_um:.1f} um"
             else:
-                dist_label = f"{dist_px:.1f} \u00b1 1 px  (uncalibrated)"
+                dist_label = f"{dist_px:.1f} +/- 1 px  (uncalibrated)"
             cv2.putText(draw, dist_label, (mid_x, mid_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
-            cv2.putText(draw, f"{angle:.2f} \u00b1 {angle_err:.2f} deg", (mid_x, mid_y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+            cv2.putText(draw, f"{angle:.2f} +/- {angle_err:.2f} deg", (mid_x, mid_y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
         self.last_output_frame = draw.copy()
         rgb = cv2.cvtColor(draw, cv2.COLOR_BGR2RGB)
@@ -551,7 +557,7 @@ class PreviewWindow(QWidget):
         self.image_label.setPixmap(QPixmap.fromImage(qimg))
 
         center_x, center_y = orig_w//2, orig_h//2
-        if self.measure_mode and len(self.measure_points) < 2:
+        if self.zoom_under_cursor or (self.measure_mode and len(self.measure_points) < 2):
             mx, my = self.last_mouse_pos.x(), self.last_mouse_pos.y()
             try:
                 center_x = int((mx - ox) * sx)
@@ -570,7 +576,25 @@ class PreviewWindow(QWidget):
             return
 
         zoom_resized = cv2.resize(zoom_crop, (500, 500), interpolation=cv2.INTER_NEAREST)
-        if self.show_crosshair or (self.measure_mode and len(self.measure_points) < 2):
+
+        # Draw scale bar on zoom window
+        sb = self.get_scale_bar_pixels(self.magnification)
+        if sb and self.show_scale_bar:
+            _, _, ppm = sb
+            zoom_display_scale = 500.0 / (2 * zs)   # display px per frame px
+            ppm_zoom = ppm * zoom_display_scale       # display px per µm
+            # Largest nice bar that fits in ≤200 display px
+            _nice = [1, 2, 5, 10, 20, 50, 100, 200]
+            bar_um = next((u for u in _nice if ppm_zoom * u >= 30), _nice[0])
+            bar_um = next((u for u in reversed(_nice) if ppm_zoom * u <= 200), bar_um)
+            bar_px_z = int(ppm_zoom * bar_um)
+            bar_color = (255, 255, 255) if self.scale_bar_color == 'White' else (0, 0, 0)
+            bx1, by = 10, 488
+            cv2.rectangle(zoom_resized, (bx1, by - 4), (bx1 + bar_px_z, by), bar_color, -1)
+            cv2.putText(zoom_resized, f"{bar_um} um",
+                        (bx1, by - 7), cv2.FONT_HERSHEY_SIMPLEX, 0.45, bar_color, 1)
+
+        if self.show_crosshair or self.zoom_under_cursor or (self.measure_mode and len(self.measure_points) < 2):
             self.zoom_window.update_image(zoom_resized)
             self.zoom_window.show()
         else:

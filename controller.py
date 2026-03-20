@@ -18,6 +18,7 @@ class Controller(QObject):
     native_zoom_toggled = pyqtSignal(bool)
     wb_temperature_changed = pyqtSignal(int)
     binning_changed = pyqtSignal(int)
+    zoom_under_cursor_changed = pyqtSignal(bool)
 
     def __init__(self):
         super().__init__()
