@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nikon-Prior Microscope Control — User Manual</title>
+<style>
+  :root {
+    --bg:        #1a1a2e;
+    --surface:   #16213e;
+    --card:      #0f3460;
+    --accent:    #e94560;
+    --accent2:   #0f9b8e;
+    --text:      #e0e0e0;
+    --muted:     #9090a0;
+    --border:    #2a3a5e;
+    --code-bg:   #0d1b2a;
+    --warn-bg:   #3a2010;
+    --warn-border:#c06020;
+    --tip-bg:    #0d2a1e;
+    --tip-border:#1a8a5a;
+    --font-body: 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'Cascadia Code', 'Consolas', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* ── Layout ── */
+  #toc-sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 260px;
+    height: 100vh;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 24px 0 40px;
+    z-index: 100;
+  }
+  #toc-sidebar h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    padding: 0 20px 12px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+  }
+  #toc-sidebar ul { list-style: none; }
+  #toc-sidebar ul li a {
+    display: block;
+    padding: 5px 20px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    transition: color 0.15s, background 0.15s;
+    border-left: 3px solid transparent;
+  }
+  #toc-sidebar ul li a:hover {
+    color: var(--text);
+    background: rgba(255,255,255,0.04);
+    border-left-color: var(--accent2);
+  }
+  #toc-sidebar ul li.section > a {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 13px;
+    margin-top: 10px;
+    padding-top: 8px;
+  }
+  #toc-sidebar ul li.sub > a {
+    padding-left: 34px;
+    font-size: 12.5px;
+  }
+
+  #content {
+    margin-left: 260px;
+    padding: 48px 60px 100px;
+    max-width: 960px;
+  }
+
+  /* ── Typography ── */
+  h1 {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin-bottom: 8px;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 1rem;
+    margin-bottom: 40px;
+  }
+  h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffffff;
+    margin: 56px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--accent);
+  }
+  h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+  }
+  h4 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--text);
+    margin: 18px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  p { margin-bottom: 12px; }
+  ul, ol { margin: 8px 0 14px 22px; }
+  li { margin-bottom: 4px; }
+
+  /* ── Key/badge ── */
+  kbd {
+    display: inline-block;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: #fff;
+    white-space: nowrap;
+  }
+  code {
+    font-family: var(--font-mono);
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-size: 13px;
+    color: #7ecfb0;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 16px 20px;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: #7ecfb0;
+    margin: 12px 0 20px;
+  }
+
+  /* ── Cards for control tables ── */
+  .controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 14px 0 24px;
+  }
+  .controls table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .controls table th {
+    background: var(--card);
+    text-align: left;
+    padding: 8px 14px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+  .controls table td {
+    padding: 9px 14px;
+    border-top: 1px solid var(--border);
+    font-size: 13.5px;
+    vertical-align: top;
+  }
+  .controls table td:first-child {
+    font-weight: 600;
+    color: #ffffff;
+    white-space: nowrap;
+    width: 200px;
+  }
+  .controls table tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* ── Callout boxes ── */
+  .warn {
+    background: var(--warn-bg);
+    border-left: 4px solid var(--warn-border);
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  .warn strong { color: #f0a060; }
+  .tip {
+    background: var(--tip-bg);
+    border-left: 4px solid var(--tip-border);
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+    margin: 16px 0;
+    font-size: 13.5px;
+  }
+  .tip strong { color: #40c090; }
+
+  /* ── Gamepad map ── */
+  .gamepad-map {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 14px 0;
+  }
+  .gamepad-map .btn-entry {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  .gamepad-map .btn-entry .btn-name {
+    font-weight: 700;
+    color: var(--accent2);
+    margin-bottom: 2px;
+  }
+
+  /* ── Hardware overview ── */
+  .hw-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0 24px;
+  }
+  .hw-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .hw-card .hw-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .hw-card .hw-name {
+    font-weight: 600;
+    color: #fff;
+    font-size: 14px;
+  }
+  .hw-card .hw-detail {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 4px;
+  }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* ── Anchor offset for fixed sidebar ── */
+  section[id]::before {
+    content: '';
+    display: block;
+    height: 24px;
+    margin-top: -24px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ SIDEBAR TOC ══════════════════ -->
+<nav id="toc-sidebar">
+  <h2>Contents</h2>
+  <ul>
+    <li class="section"><a href="#overview">Overview</a></li>
+    <li class="section"><a href="#hardware">Hardware</a></li>
+    <li class="section"><a href="#launching">Launching</a></li>
+    <li class="section"><a href="#preview">Camera Preview</a></li>
+    <li class="section"><a href="#imaging-controls">Imaging Controls</a></li>
+      <li class="sub"><a href="#exposure">Exposure &amp; Gain</a></li>
+      <li class="sub"><a href="#whitebalance">White Balance</a></li>
+      <li class="sub"><a href="#magnification">Magnification</a></li>
+      <li class="sub"><a href="#binning">Binning</a></li>
+      <li class="sub"><a href="#scalebar">Scale Bar</a></li>
+      <li class="sub"><a href="#zoom">Zoom &amp; Crosshair</a></li>
+      <li class="sub"><a href="#hud">HUD</a></li>
+      <li class="sub"><a href="#saving">Saving Images</a></li>
+    <li class="section"><a href="#stage">Stage Controls</a></li>
+      <li class="sub"><a href="#xy-control">XY Control</a></li>
+      <li class="sub"><a href="#z-control">Z Fine Focus</a></li>
+      <li class="sub"><a href="#keyboard">Keyboard Shortcuts</a></li>
+      <li class="sub"><a href="#positions">Position Manager</a></li>
+    <li class="section"><a href="#focus">Focus</a></li>
+      <li class="sub"><a href="#focus-presets">Focus Presets</a></li>
+      <li class="sub"><a href="#autofocus">Autofocus</a></li>
+      <li class="sub"><a href="#focus-map">Focus Map</a></li>
+    <li class="section"><a href="#sample">Sample Tools</a></li>
+      <li class="sub"><a href="#wafer-extents">Find Wafer Extents</a></li>
+      <li class="sub"><a href="#wafer-scan">Wafer Scan</a></li>
+      <li class="sub"><a href="#index-mark">Index Mark Navigator</a></li>
+    <li class="section"><a href="#analysis">Analysis</a></li>
+      <li class="sub"><a href="#measure">Measure Tool</a></li>
+      <li class="sub"><a href="#layer-contrast">Layer Contrast</a></li>
+      <li class="sub"><a href="#flat-field">Flat-Field Correction</a></li>
+      <li class="sub"><a href="#pixel-intensity">Pixel Intensity</a></li>
+    <li class="section"><a href="#file-save">File Save Options</a></li>
+    <li class="section"><a href="#gamepad">Gamepad Control</a></li>
+    <li class="section"><a href="#calibration">Calibration</a></li>
+    <li class="section"><a href="#troubleshooting">Troubleshooting</a></li>
+  </ul>
+</nav>
+
+<!-- ══════════════════ MAIN CONTENT ══════════════════ -->
+<main id="content">
+
+<h1>Nikon-Prior Microscope Control</h1>
+<p class="subtitle">User Manual &mdash; Nikon L200ND &bull; Prior ProScan III &bull; Allied Vision Alvium 1800 U-508c</p>
+
+<!-- ─────────────────────────────────────── -->
+<section id="overview">
+<h2>Overview</h2>
+<p>This software provides integrated control of a Nikon L200ND upright microscope with a motorised Prior Scientific XYZ stage and an Allied Vision USB3 camera. It runs as a Python/PyQt5 desktop application and is designed for optical characterisation of 2D materials, wafers, and thin films.</p>
+<p>All windows are launched from the <strong>Launcher</strong> panel on the right edge of the screen. Windows can be freely moved, resized, and stacked; they are not docked to a fixed layout.</p>
+<div class="tip"><strong>Tip:</strong> The Launcher stays on top of all other windows so you can always reach it.</div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="hardware">
+<h2>Hardware</h2>
+<div class="hw-grid">
+  <div class="hw-card">
+    <div class="hw-label">Microscope</div>
+    <div class="hw-name">Nikon L200ND</div>
+    <div class="hw-detail">Upright, reflected light</div>
+  </div>
+  <div class="hw-card">
+    <div class="hw-label">XY Stage</div>
+    <div class="hw-name">Prior H116/2</div>
+    <div class="hw-detail">255 &times; 215 mm travel, 2 mm pitch ball screw</div>
+  </div>
+  <div class="hw-card">
+    <div class="hw-label">Z Drive</div>
+    <div class="hw-name">Prior PS3H122</div>
+    <div class="hw-detail">~25 mm travel, coupled to Nikon fine focus via H122KON kit</div>
+  </div>
+  <div class="hw-card">
+    <div class="hw-label">Joystick</div>
+    <div class="hw-name">Prior PS3J100</div>
+    <div class="hw-detail">Hardware joystick; talks directly to ProScan III, bypasses the app</div>
+  </div>
+  <div class="hw-card">
+    <div class="hw-label">Camera</div>
+    <div class="hw-name">Alvium 1800 U-508c</div>
+    <div class="hw-detail">2464 &times; 2056 px, Sony IMX250, USB3 Vision, 3.45 µm pixel pitch</div>
+  </div>
+  <div class="hw-card">
+    <div class="hw-label">Controller</div>
+    <div class="hw-name">Prior ProScan III</div>
+    <div class="hw-detail">Serial, 9600 baud 8N1, auto-detected on /dev/ttyACM0</div>
+  </div>
+</div>
+
+<div class="warn"><strong>Note:</strong> The joystick (PS3J100) communicates directly with the ProScan III controller and moves the stage outside the software. Stage sliders will resync automatically on the next application start, or by reopening Stage Controls.</div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="launching">
+<h2>Launching the Software</h2>
+<pre>cd ~/nikon-prior
+source ~/nikon-prior/bin/activate     # activate venv
+QT_QPA_PLATFORM=xcb python main.py</pre>
+<p>The <code>QT_QPA_PLATFORM=xcb</code> prefix avoids a Wayland warning; the warning is harmless if omitted. A convenience script <code>start_nikon_prior</code> on the desktop sets this automatically.</p>
+<p>On startup the application:</p>
+<ol>
+  <li>Connects to the ProScan III controller (auto-detects serial port)</li>
+  <li>Opens and configures the Alvium camera (falls back to a synthetic mock if no camera is found)</li>
+  <li>Shows the <strong>Camera Preview</strong> and <strong>Launcher</strong> windows</li>
+</ol>
+<div class="tip"><strong>Tip:</strong> If the camera shows "already in use", run <code>pkill -f main.py</code> or replug the USB cable, then restart.</div>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="preview">
+<h2>Camera Preview</h2>
+<p>The <strong>Camera Preview</strong> window shows the live camera feed. It scales to fill whatever window size you set — the image always fits the window while preserving aspect ratio.</p>
+
+<h3>Double-click to centre</h3>
+<p>Double-click any point in the preview to move the stage so that point is centred in the field of view. The movement uses the current calibrated pixels-per-µm value, so accuracy depends on the magnification calibration being correct.</p>
+
+<h3>Focus bar</h3>
+<p>A thin coloured bar at the bottom of the preview shows the Laplacian variance focus metric:</p>
+<ul>
+  <li><strong style="color:#0077bb">Blue</strong> — very out of focus (&lt; 5)</li>
+  <li><strong style="color:#ee7733">Orange</strong> — partially in focus (5–20)</li>
+  <li><strong style="color:#dddddd">Grey</strong> — sharp (&gt; 20)</li>
+</ul>
+<p>The numeric value is shown to the right of the bar. Use this as a real-time focus guide when adjusting the coarse or fine focus knobs.</p>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="imaging-controls">
+<h2>Imaging Controls</h2>
+<p>Open via <strong>Launcher → Open Imaging Controls</strong>.</p>
+
+<!-- Exposure -->
+<section id="exposure">
+<h3>Exposure &amp; Gain</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Exposure slider</td><td>Log-scale from 0.01 ms to 1000 ms. Drag or type a value (in ms) into the text box and press Enter.</td></tr>
+  <tr><td>Gain</td><td>Analogue sensor gain, 0–100 dB. Increase only when exposure is at its maximum — gain amplifies noise as well as signal.</td></tr>
+  <tr><td>Auto Exposure</td><td>Hands exposure control to the camera's built-in auto-exposure algorithm. The slider and text box are disabled while active; unchecking reads the current exposure back from hardware.</td></tr>
+  <tr><td>Mag-based exposure</td><td>When checked, switching magnification automatically applies the stored exposure for that objective from <code>focus_presets.json</code>. The default for 10&times; is 6 ms.</td></tr>
+</table></div>
+</section>
+
+<!-- White Balance -->
+<section id="whitebalance">
+<h3>White Balance</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>WB Temp (K)</td><td>Sets the Red and Blue channel BalanceRatio on the camera using a colour-temperature approximation. Range 2800 K (warm/tungsten) to 7500 K (cool/daylight). Green is fixed at 1.0 by the camera. The default 5300 K gives a neutral result on this setup.</td></tr>
+</table></div>
+<div class="tip"><strong>Tip:</strong> If colours look wrong after changing objectives or light intensity, adjust WB Temp to re-neutralise the grey background.</div>
+</section>
+
+<!-- Magnification -->
+<section id="magnification">
+<h3>Magnification</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Magnification dropdown</td><td>Informs all calibrated measurements (scale bar, measure tool, double-click navigation). Options: 5&times;, 10&times;, 20&times;, 50&times;, 100&times;. <em>Does not move any hardware</em> — set this to match the physical objective in use.</td></tr>
+</table></div>
+<p>Calibration values (pixels per µm) are defined in <code>ui/preview.py</code> → <code>calibration_table</code>. The 10&times; value was measured with a stage micrometer; others are linearly scaled from it and should be verified.</p>
+</section>
+
+<!-- Binning -->
+<section id="binning">
+<h3>Binning</h3>
+<p>Reduces camera resolution to increase frame rate and match the field of view seen at different pixel densities.</p>
+<div class="controls"><table>
+  <tr><th>Setting</th><th>Resolution</th><th>FPS (approx.)</th><th>Notes</th></tr>
+  <tr><td>1&times; (full)</td><td>2464 &times; 2056</td><td>~30</td><td>Full sensor, software processing is heaviest</td></tr>
+  <tr><td>2&times;</td><td>1232 &times; 1028</td><td>~30</td><td>Camera ROI mode; software downscale applied to maintain full FOV</td></tr>
+  <tr><td>4&times; (default)</td><td>616 &times; 514</td><td>~30</td><td>Hardware binning — fastest, best SNR, full FOV, recommended for autofocus</td></tr>
+</table></div>
+<div class="tip"><strong>Tip:</strong> Use 4&times; for navigation and autofocus; switch to 1&times; for high-resolution capture. All binning modes show the same physical field of view.</div>
+</section>
+
+<!-- Scale Bar -->
+<section id="scalebar">
+<h3>Scale Bar</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Show Scale Bar</td><td>Overlay a calibrated scale bar in the corner of the preview. Length is chosen automatically (100 µm at 10&times;, etc.).</td></tr>
+  <tr><td>Scale Bar Color</td><td>White or Black — choose whichever contrasts with your sample background.</td></tr>
+</table></div>
+</section>
+
+<!-- Zoom & Crosshair -->
+<section id="zoom">
+<h3>Zoom &amp; Crosshair</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Show Centre Zoom</td><td>Opens a 500 &times; 500 px zoom window showing a 40 &times; 40 px crop from the centre of the frame at 12.5&times; magnification. A calibrated scale bar is overlaid. Double-click in this window to move the stage so that point is centred.</td></tr>
+  <tr><td>Zoom Under Cursor</td><td>The zoom window follows the mouse pointer over the camera preview instead of being fixed at the centre. Useful for inspecting features without moving the stage.</td></tr>
+  <tr><td>Full-Screen Crosshair + Ticks</td><td>Draws a full-width/height green crosshair with distance tick marks over the image. Tick spacing is chosen automatically from the calibration.</td></tr>
+  <tr><td>Native Zoom (1:1)</td><td>Snaps the preview window to exactly 1 display pixel per camera pixel. Useful for pixel-level inspection at full resolution.</td></tr>
+</table></div>
+</section>
+
+<!-- HUD -->
+<section id="hud">
+<h3>HUD (Heads-Up Display)</h3>
+<p>Checking <strong>Show HUD</strong> overlays a semi-transparent information panel on the preview showing: current magnification, live FPS, and X / Y / Z stage positions in mm. Updated at ~3 Hz.</p>
+</section>
+
+<!-- Temporal averaging -->
+<h3>Flicker Averaging</h3>
+<p>Averages the last N frames before display. Set to 1 (off) by default. Use 3–4 frames to suppress 50/60 Hz flicker from fluorescent or LED ambient lighting. Higher values introduce motion blur if the stage is moving.</p>
+
+<!-- Saving -->
+<section id="saving">
+<h3>Saving Images from the Controls Panel</h3>
+<div class="controls"><table>
+  <tr><th>Button</th><th>Description</th></tr>
+  <tr><td>Save View</td><td>Opens a file dialog and saves the current rendered preview (with scale bar, crosshair, and any overlays) as PNG.</td></tr>
+  <tr><td>Capture Frame</td><td>Opens a file dialog and saves the raw camera frame (no overlays) as PNG.</td></tr>
+</table></div>
+<p>For richer filename metadata, use <strong>File Save Options</strong> instead (see <a href="#file-save">File Save Options</a>).</p>
+</section>
+
+<!-- Measure Tool -->
+<section id="measure">
+<h3>Measure Tool</h3>
+<p>Enable via the <strong>Measure Tool</strong> checkbox. Click two points on the preview to measure the distance and angle between them.</p>
+<ul>
+  <li><strong>Distance</strong> — shown as <em>N +/- 1 px / M +/- δ um</em>, where δ is the 1-pixel positional uncertainty propagated to physical units.</li>
+  <li><strong>Angle</strong> — shown as <em>θ +/- δθ deg</em>, where δθ is computed from the 1-pixel positional uncertainty.</li>
+  <li>Click a third time to clear and start again.</li>
+  <li>When fewer than two points are placed, the zoom window follows the cursor for precise point placement.</li>
+</ul>
+</section>
+
+</section><!-- end imaging-controls -->
+
+<!-- ─────────────────────────────────────── -->
+<section id="stage">
+<h2>Stage Controls</h2>
+<p>Open via <strong>Launcher → Open Stage Controls</strong>.</p>
+
+<section id="xy-control">
+<h3>XY Control</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Stage map</td><td>Interactive 2D map of the stage area. The green dot shows the current position. Saved positions appear as labelled thumbnails. Click anywhere on the map to move there.</td></tr>
+  <tr><td>X slider</td><td>&minus;127.5 mm to +127.5 mm. Dragging sends a move command; the slider and motor position label update continuously.</td></tr>
+  <tr><td>Y slider</td><td>&minus;107.5 mm to +107.5 mm.</td></tr>
+  <tr><td>Jog buttons (←→↑↓)</td><td>Steps of 1000 µm, 100 µm, or 10 µm. Three columns of buttons for coarse / medium / fine movement.</td></tr>
+  <tr><td>Setpoint label</td><td>Target position derived from slider values (µm).</td></tr>
+  <tr><td>Motor label</td><td>Actual hardware position polled every 200 ms (mm).</td></tr>
+  <tr><td>Zero position here</td><td>Sets current XY as the software origin (0, 0). Does not move the stage.</td></tr>
+  <tr><td>Go to origin</td><td>Moves stage to (0, 0, 0).</td></tr>
+</table></div>
+</section>
+
+<section id="z-control">
+<h3>Z Fine Focus</h3>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Z+ / Z&minus; buttons</td><td>±10 µm steps in Z (fine focus).</td></tr>
+  <tr><td>Z velocity slider</td><td>Spring-back vertical slider. Drag up (positive) to move deeper into the sample; drag down to retract. Releases return to centre and stop motion. Speed is proportional to displacement from centre.</td></tr>
+  <tr><td>Z position label</td><td>Current relative Z in mm (red background = non-zero).</td></tr>
+</table></div>
+<div class="warn"><strong>Caution:</strong> Z travel is approximately 25 mm via the Prior H122KON coupling to the Nikon fine focus. Do not drive Z beyond the visible range of the focus knob.</div>
+</section>
+
+<section id="keyboard">
+<h3>Keyboard Shortcuts</h3>
+<p>These shortcuts are active when the Stage Controls window is focused.</p>
+<div class="controls"><table>
+  <tr><th>Key</th><th>Action</th></tr>
+  <tr><td><kbd>←</kbd> <kbd>→</kbd> <kbd>↑</kbd> <kbd>↓</kbd></td><td>Jog XY by 100 µm</td></tr>
+  <tr><td><kbd>Shift</kbd> + arrows</td><td>Jog XY by 10 µm</td></tr>
+  <tr><td><kbd>Page Up</kbd> / <kbd>Page Down</kbd></td><td>Jog Z by 100 µm</td></tr>
+  <tr><td><kbd>Shift</kbd> + <kbd>Page Up/Down</kbd></td><td>Jog Z by 10 µm</td></tr>
+</table></div>
+</section>
+
+<section id="positions">
+<h3>Position Manager</h3>
+<p>Open via <strong>Launcher → Open Position Manager</strong>.</p>
+<p>Stores up to 10 named stage positions. Each slot shows name, X, Y, Z coordinates (µm), and a thumbnail preview captured at that location.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Save Current</td><td>Captures current stage position into the selected row, along with a preview thumbnail.</td></tr>
+  <tr><td>Recall Selected</td><td>Moves stage to the selected position.</td></tr>
+  <tr><td>Save to File / Load from File</td><td>Persist and reload position lists as JSON.</td></tr>
+  <tr><td>Double-click cell</td><td>Edit position name or coordinates directly.</td></tr>
+</table></div>
+<p>Saved positions also appear as labelled dots on the Stage Map for visual reference.</p>
+</section>
+
+</section><!-- end stage -->
+
+<!-- ─────────────────────────────────────── -->
+<section id="focus">
+<h2>Focus</h2>
+
+<section id="focus-presets">
+<h3>Objective Focus Presets</h3>
+<p>Open via <strong>Launcher → Open Focus Panel</strong>.</p>
+<p>Stores a Z position for each objective (5&times;, 10&times;, 20&times;, 50&times;, 100&times;) so you can instantly refocus after changing objectives. Presets are relative to the last origin set and assume the coarse focus knob has not been moved.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Set [obj]</td><td>Save the current Z as the focus preset for that objective.</td></tr>
+  <tr><td>Goto [obj]</td><td>Move Z to the stored preset.</td></tr>
+  <tr><td>Lock</td><td>Prevents a preset from being overwritten accidentally.</td></tr>
+  <tr><td>Lock Delta</td><td>When enabled, updating one objective's preset automatically shifts all unlocked presets by the same delta — useful after a coarse focus adjustment that affects all objectives equally.</td></tr>
+</table></div>
+<p>Presets are saved to <code>focus_presets.json</code> in the application directory.</p>
+</section>
+
+<section id="autofocus">
+<h3>Autofocus</h3>
+<p>Open via <strong>Launcher → Open Autofocus</strong>.</p>
+<p>Two-phase focus sweep based on the derivative of a focus metric.</p>
+
+<h4>Phase 1 — Coarse sweep</h4>
+<p>Steps through Z at a coarse step size, tracking the derivative of the focus metric. Direction is chosen automatically (or from the last known focus position). The scan stops as soon as a zero-crossing of the derivative is detected (metric peak). If no peak is found in one direction the algorithm reverses and tries the other direction.</p>
+
+<h4>Phase 2 — Fine sweep</h4>
+<p>Fits a parabola to the coarse data near the peak to estimate a sub-step accurate centre, then does a fine sweep around it. Moves to the best-found Z.</p>
+
+<div class="controls"><table>
+  <tr><th>Parameter</th><th>Description</th></tr>
+  <tr><td>Metric</td><td>Focus quality measure. <em>LaplacianVariance</em> (default) works best for high-contrast samples. <em>Tenengrad</em> is more robust to uniform textures. <em>ImageVariance</em> is fastest. <em>Brightness</em> is useful for transmitted-light samples.</td></tr>
+  <tr><td>Step (mm)</td><td>Fine step size. Smaller = more precise but slower.</td></tr>
+  <tr><td>Settle (ms)</td><td>Wait time after each Z move before measuring. Increase if mechanical vibration is visible.</td></tr>
+  <tr><td>Coarse factor</td><td>Multiplier applied to Step for the coarse phase (coarse step = Step &times; factor).</td></tr>
+  <tr><td>Fine factor</td><td>Multiplier for the fine phase step (fine step = Step &times; factor).</td></tr>
+  <tr><td>Fine range factor</td><td>Half-width of the fine sweep as a multiple of the coarse step.</td></tr>
+  <tr><td>Trend N</td><td>Number of steps used for both the initial direction check and the smoothing window. Increase for noisier samples.</td></tr>
+  <tr><td>Frames avg</td><td>Number of frames averaged per measurement. Increase to reduce camera noise at the cost of speed.</td></tr>
+  <tr><td>Z range (mm)</td><td>Maximum scan distance in each direction from start. Acts as a safety budget — the scan stops at the peak, not necessarily at this distance.</td></tr>
+</table></div>
+
+<p>A live plot shows the focus metric vs Z and its derivative during the sweep. Per-magnification defaults are loaded automatically when the magnification selector changes, and can be saved via <strong>Save as default</strong>.</p>
+<div class="tip"><strong>Tip:</strong> 4&times; binning is strongly recommended for autofocus. At 1&times; the metric computation is slower and may cause timing issues with settle delays.</div>
+</section>
+
+<section id="focus-map">
+<h3>Focus Map</h3>
+<p>Open via <strong>Launcher → Open Focus Map</strong>.</p>
+<p>Builds a 2D focus surface by running autofocus at a regular grid of stage positions across the wafer. The surface is interpolated so that during a wafer scan, Z can be set from the map without running autofocus at every point.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Columns / Rows</td><td>Grid density (2–15 per axis). More points = more accurate surface at the cost of measurement time.</td></tr>
+  <tr><td>Min metric</td><td>Autofocus quality threshold. Points below this are flagged for manual refocusing.</td></tr>
+  <tr><td>Fit degree</td><td>1 = plane, 2 = quadratic, 3 = cubic. Start with 1 (flat wafer). Increase only if the residuals are systematic.</td></tr>
+  <tr><td>Measure Focus Map</td><td>Start the automated grid scan (requires wafer boundaries to be set).</td></tr>
+  <tr><td>Apply Focus Here</td><td>Move Z to the interpolated depth at the current XY position.</td></tr>
+  <tr><td>Save Map / Load Map</td><td>Export and import focus surfaces as JSON for reuse across sessions.</td></tr>
+  <tr><td>Set Reference Z</td><td>After loading a map from a previous session, focus manually at any reference point and click this to anchor the offsets to the current hardware position.</td></tr>
+</table></div>
+<p>The heatmap display shows the surface colour-coded by Z offset (red = higher, green = lower). Statistics (peak-to-valley ΔZ, standard deviation) are shown below the map.</p>
+</section>
+
+</section><!-- end focus -->
+
+<!-- ─────────────────────────────────────── -->
+<section id="sample">
+<h2>Sample Tools</h2>
+
+<section id="wafer-extents">
+<h3>Find Wafer Extents</h3>
+<p>Open via <strong>Launcher → Find Wafer Extents</strong>.</p>
+<p>Automatically locates the wafer boundary by stepping the stage outward in ±X and ±Y from the origin and detecting the intensity drop where the sample ends. Results are passed directly to the Wafer Scan panel.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Step size</td><td>Distance per step during edge search (0.05–2.0 mm). Smaller = more precise edge location but slower.</td></tr>
+  <tr><td>Auto threshold</td><td>If checked, the software measures intensity at centre and at X=10 mm to automatically compute the brightness threshold. Leave unchecked if the automatic detection fails (e.g. very dark or reflective sample).</td></tr>
+  <tr><td>Manual threshold</td><td>Frame intensity (0–255 mean brightness) below which a frame is considered "off wafer". Active when Auto threshold is unchecked. 100 is a reasonable starting point for typical samples.</td></tr>
+  <tr><td>Find Wafer Extents</td><td>Start the search. A progress dialog shows each axis being scanned. The stage returns to centre after each edge is found.</td></tr>
+</table></div>
+<div class="tip"><strong>Tip:</strong> Run Find Wafer Extents before starting a Wafer Scan — the detected boundaries feed directly into the scan grid.</div>
+</section>
+
+<section id="wafer-scan">
+<h3>Wafer Scan</h3>
+<p>Open via <strong>Launcher → Open Wafer Mapping</strong>.</p>
+<p>Performs an automated serpentine raster scan over the detected wafer area, capturing images at each grid point with optional autofocus.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Step X / Step Y</td><td>Grid spacing in mm. Use <strong>Set step = FOV</strong> to automatically calculate the step from the current calibrated field of view (no tile overlap).</td></tr>
+  <tr><td>Set step = FOV</td><td>Computes step size = sensor width or height / (pixels per µm) / 1000, giving exactly contiguous tiles. Reduce manually for overlap.</td></tr>
+  <tr><td>Settling time</td><td>Wait after the stage reaches each point before capturing (default 0.5 s).</td></tr>
+  <tr><td>Position tolerance</td><td>Maximum allowed position error before capture proceeds (default 0.01 mm).</td></tr>
+  <tr><td>Safe zone</td><td>Inset from each detected wafer edge (default 0.5 mm). The scan grid will not approach within this distance of any boundary.</td></tr>
+  <tr><td>Use focus map Z</td><td>Before each capture, move Z to the interpolated depth from the Focus Map. Requires a map to have been measured. Fast alternative to per-point autofocus.</td></tr>
+  <tr><td>Autofocus each point</td><td>Run autofocus at every grid point. Can be combined with focus map (map provides initial Z, autofocus refines).</td></tr>
+  <tr><td>Start Scan / Stop</td><td>Begin or abort the scan.</td></tr>
+  <tr><td>Go to Centre</td><td>Move stage to (0, 0).</td></tr>
+  <tr><td>Open Scan Folder</td><td>Open the output directory in the file manager after scanning.</td></tr>
+</table></div>
+<p>Images are saved as PNG files named <code>img_X+X.XXX_Y+Y.YYY.png</code> in a timestamped folder (<code>wafer_scan_YYYYMMDD_HHMMSS/</code>). A JSON metadata file is also written.</p>
+</section>
+
+<section id="index-mark">
+<h3>Index Mark Navigator</h3>
+<p>Open via <strong>Launcher → Index Mark Navigator</strong>.</p>
+<p>Navigates the wafer using etched index marks arranged on a 500 µm grid with XX,YY coordinate labels.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Current position (X, Y)</td><td>Enter the XX,YY label of the visible mark to set the current grid position.</td></tr>
+  <tr><td>Sample rotation angle</td><td>Angle of the grid relative to the stage X axis (degrees). Use <strong>Detect from marks</strong> if two or more marks are visible to estimate this automatically.</td></tr>
+  <tr><td>Target position (X, Y)</td><td>Grid coordinates to navigate to.</td></tr>
+  <tr><td>Go To</td><td>Move stage by the 2D-rotated displacement between current and target grid position.</td></tr>
+  <tr><td>Highlight cross marks</td><td>Overlay detected mark centres in the preview.</td></tr>
+</table></div>
+<p>Each grid step corresponds to 500 µm of stage travel in the (rotation-corrected) grid frame.</p>
+</section>
+
+</section><!-- end sample -->
+
+<!-- ─────────────────────────────────────── -->
+<section id="analysis">
+<h2>Analysis Tools</h2>
+
+<section id="layer-contrast">
+<h3>Layer Contrast Detection</h3>
+<p>Open via <strong>Launcher → Open Layer Contrast</strong>.</p>
+<p>Detects and highlights monolayer, bilayer, and trilayer regions in real time by colour thresholding the live preview.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Pick (per layer)</td><td>Activates eyedropper mode. Click any pixel in the preview to sample its colour as the target for that layer.</td></tr>
+  <tr><td>Contrast field</td><td>Enter the optical contrast (ΔI/I in %) relative to background. The target colour is computed as background &times; (1 + contrast/100). Typical graphene contrasts: monolayer &minus;2 to &minus;4%, bilayer &minus;4 to &minus;8%.</td></tr>
+  <tr><td>Auto (background)</td><td>Automatically determines background colour from the histogram mode of each frame.</td></tr>
+  <tr><td>Overlay colour</td><td>Choose the outline colour for each detected layer type.</td></tr>
+  <tr><td>Show</td><td>Toggle overlay visibility per layer.</td></tr>
+  <tr><td>Tolerance</td><td>Colour matching radius in RGB space (1–80). Increase for noisier images or weaker contrast.</td></tr>
+</table></div>
+</section>
+
+<section id="flat-field">
+<h3>Flat-Field Correction</h3>
+<p>Open via <strong>Launcher → Flat-Field Correction</strong>.</p>
+<p>Removes spatially non-uniform illumination (vignetting, dust on optics) by computing a per-pixel correction map from many frames captured at random stage positions.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Positions</td><td>Number of random positions to sample (10–500). Use &ge;50 for accurate correction; more is better if the sample covers a large fraction of the field.</td></tr>
+  <tr><td>Range (mm)</td><td>Stage moves randomly within &plusmn;this distance from the start position.</td></tr>
+  <tr><td>Collect &amp; Build Background</td><td>Start collection. The stage moves to each random position, waits 50 ms, captures a frame, then returns to the start. The median across all frames is computed as the flat field.</td></tr>
+  <tr><td>Apply correction to preview</td><td>Divide each live frame by the flat field and stretch contrast. Toggle to compare corrected and uncorrected views.</td></tr>
+  <tr><td>Smoothing &sigma;</td><td>Gaussian blur applied to the flat field before division. &sigma; = 0 is fine for most cases; increase to 5–10 if dust spots in the flat field create ring artefacts.</td></tr>
+</table></div>
+<div class="tip"><strong>Tip:</strong> Collect flat fields at the same exposure and binning setting you will use for imaging. Recollect if you change objectives or illumination.</div>
+</section>
+
+<section id="pixel-intensity">
+<h3>Pixel Intensity Measurement</h3>
+<p>Open via <strong>Launcher → Pixel Intensity</strong>.</p>
+<p>Samples a 5&times;5 pixel region of interest at the frame centre and logs mean intensity, central pixel intensity, and per-pixel BGR values to a CSV file (<code>data/pixel_data.csv</code>) together with the current stage coordinates. Use for repeatable reflectance measurements at specific stage positions.</p>
+</section>
+
+</section><!-- end analysis -->
+
+<!-- ─────────────────────────────────────── -->
+<section id="file-save">
+<h2>File Save Options</h2>
+<p>Open via <strong>Launcher → File Save Options</strong>. Provides richer save controls than the quick buttons in Imaging Controls.</p>
+<div class="controls"><table>
+  <tr><th>Control</th><th>Description</th></tr>
+  <tr><td>Output Directory</td><td>Working directory for all saves. Click <strong>Browse…</strong> to change; persists across sessions.</td></tr>
+  <tr><td>Sample name</td><td>Base name for filenames (e.g. <code>wafer_A1</code>).</td></tr>
+  <tr><td>Timestamp</td><td>Append <code>YYYYMMDD_HHMMSS</code> to the filename.</td></tr>
+  <tr><td>Magnification</td><td>Append current magnification (e.g. <code>10x</code>).</td></tr>
+  <tr><td>Exposure (ms)</td><td>Append current exposure setting.</td></tr>
+  <tr><td>X / Y pos</td><td>Append current stage XY coordinates.</td></tr>
+  <tr><td>Save View (PNG)</td><td>Save the rendered preview with all overlays (scale bar, crosshair, etc.).</td></tr>
+  <tr><td>Capture Frame (PNG)</td><td>Save the raw camera frame without any overlays.</td></tr>
+</table></div>
+<p>A live filename preview at the bottom shows what the next file will be called.</p>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="gamepad">
+<h2>Gamepad Control</h2>
+<p>Open via <strong>Launcher → Open Gamepad</strong>. Requires an Xbox-compatible controller.</p>
+<p>XY and Z speeds are scaled by the current objective magnification so a full joystick deflection always moves approximately one field of view per second.</p>
+
+<div class="gamepad-map">
+  <div class="btn-entry"><div class="btn-name">Left stick</div>XY stage translation at configured speed</div>
+  <div class="btn-entry"><div class="btn-name">D-pad ↑ / ↓</div>Z focus in / out</div>
+  <div class="btn-entry"><div class="btn-name">A button</div>Toggle autofocus on / off</div>
+  <div class="btn-entry"><div class="btn-name">X button</div>Cycle magnification: 5&times; → 10&times; → 20&times; → 50&times; → 100&times; → 5&times;</div>
+  <div class="btn-entry"><div class="btn-name">LB (left bumper)</div>Turbo: multiply speed by turbo factor while held</div>
+  <div class="btn-entry"><div class="btn-name">RB (right bumper)</div>Fine: move exactly 1 µm regardless of speed setting</div>
+</div>
+
+<div class="controls"><table>
+  <tr><th>Setting</th><th>Description</th></tr>
+  <tr><td>Enable gamepad control</td><td>Master on/off switch.</td></tr>
+  <tr><td>Deadzone</td><td>Ignore analogue stick inputs below this threshold (0–0.5). Increase if the stage drifts when the stick is released.</td></tr>
+  <tr><td>Turbo multiplier</td><td>Speed multiplier when LB is held (1–20).</td></tr>
+  <tr><td>XY / Z speed per objective</td><td>µm per controller tick for each magnification. Separate settings per axis and per objective allow fine-tuning for each imaging mode.</td></tr>
+  <tr><td>Save / Load Settings</td><td>Persist speed configuration to <code>gamepad_settings.json</code>.</td></tr>
+</table></div>
+<p>Live axis bar graphs show real-time analogue stick values to help diagnose deadzone and calibration issues.</p>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="calibration">
+<h2>Calibration Notes</h2>
+
+<h3>Pixels per µm</h3>
+<p>The calibration table in <code>ui/preview.py</code> maps each objective to a pixels-per-µm (ppm) value. The 10&times; value (2.03 ppm) was measured with a stage micrometer on 2026-03-18. All other objectives are linearly scaled from this and should be verified independently.</p>
+<div class="controls"><table>
+  <tr><th>Objective</th><th>ppm (px/µm)</th><th>Source</th></tr>
+  <tr><td>5&times;</td><td>1.015</td><td>Implied from 10&times;</td></tr>
+  <tr><td>10&times;</td><td>2.030</td><td>Measured 2026-03-18</td></tr>
+  <tr><td>20&times;</td><td>4.060</td><td>Implied from 10&times;</td></tr>
+  <tr><td>50&times;</td><td>10.150</td><td>Implied from 10&times;</td></tr>
+  <tr><td>100&times;</td><td>20.300</td><td>Implied from 10&times;</td></tr>
+</table></div>
+
+<h3>Step sizes and axis invert flags</h3>
+<p>Per-axis step size (mm/count), invert flags, and travel limits are stored in <code>motors/step_config.json</code>. The nominal step size is 0.0001 mm/count for XY. Verify against a stage micrometer and update the file if measured steps deviate more than ~2%.</p>
+
+<h3>Z travel</h3>
+<p>The Prior PS3H122 coupled to the Nikon fine focus via the H122KON kit gives approximately 25 mm of Z travel. The slider range is set accordingly. Do not attempt to drive Z beyond the mechanical limits of the fine focus knob.</p>
+
+<h3>White balance</h3>
+<p>The default WB setting is 5300 K. The mapping from Kelvin to BalanceRatio values is a linear approximation and may need adjustment for different illumination sources. If you change the illuminator, re-optimise the slider and note the new preferred value.</p>
+</section>
+
+<!-- ─────────────────────────────────────── -->
+<section id="troubleshooting">
+<h2>Troubleshooting</h2>
+
+<h3>Camera not found / "already in use"</h3>
+<ul>
+  <li>Run <code>pkill -f main.py</code> to kill any stale process.</li>
+  <li>Replug the USB3 cable.</li>
+  <li>Check that the Vimba X runtime is installed: <code>~/Desktop/VimbaX_2025-1/bin/VimbaXViewer</code> should open without error.</li>
+  <li>If VmbPy is not installed: <code>pip install vmbpy</code> in the venv after running <code>InstallGenTL</code>.</li>
+</ul>
+
+<h3>Stage not responding</h3>
+<ul>
+  <li>Check that <code>/dev/ttyACM0</code> exists: <code>ls /dev/ttyACM*</code>. Replug the USB cable if absent.</li>
+  <li>Confirm no other process has the port open: <code>fuser /dev/ttyACM0</code>.</li>
+  <li>The ProScan III controller must be powered on before the software is started.</li>
+</ul>
+
+<h3>Sliders out of sync with hardware after joystick use</h3>
+<p>The Prior PS3J100 joystick communicates directly with the ProScan III and moves the stage without notifying the software. Reopen Stage Controls or restart the application to resync.</p>
+
+<h3>Autofocus fails at 1&times; binning</h3>
+<p>Use 4&times; binning for autofocus. At 1&times;, frame computation is slower and the settle timing may be insufficient. The autofocus parameters are tuned for the 616 &times; 514 frame size produced by 4&times; binning.</p>
+
+<h3>Find Wafer Extents finds wrong edges</h3>
+<ul>
+  <li>Adjust the manual threshold to match your sample's brightness.</li>
+  <li>Make sure the stage origin (0, 0) is near the centre of the wafer before starting.</li>
+  <li>If the background is only slightly dimmer than the sample, try increasing the step size to speed up the search and rely on the consecutive-dark-frame confirmation logic.</li>
+</ul>
+
+<h3>WB slider has no effect / gives errors</h3>
+<p>The camera must be streaming (Camera Preview open) for WB changes to take effect. Green channel is not adjustable on the Alvium (it is fixed at 1.0); only Red and Blue ratios are set.</p>
+
+<h3>Wayland / Qt platform warning at startup</h3>
+<p>The warning <em>"could not connect to display"</em> or <em>"xcb platform plugin not found"</em> is harmless when using <code>QT_QPA_PLATFORM=xcb</code>. The application will use the X11 backend regardless of the Wayland compositor.</p>
+</section>
+
+<hr>
+<p style="color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px;">
+  Nikon-Prior Microscope Control &mdash; DTU, 2026
+</p>
+
+</main>
+</body>
+</html>
