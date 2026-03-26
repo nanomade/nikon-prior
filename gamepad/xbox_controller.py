@@ -6,7 +6,12 @@ Triggers are reported as 0..1 (SDL2 returns -1..1 for triggers on axis 4/5).
 
 import os
 import struct
-import fcntl
+import sys
+
+if sys.platform == "win32":
+    fcntl = None
+else:
+    import fcntl
 
 try:
     import pygame

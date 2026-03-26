@@ -95,7 +95,7 @@ class GamepadPanel(QWidget):
         layout.addLayout(dz_row)
 
         # Speed settings
-        speed_box = QGroupBox("Step size per tick @ 20 Hz (LB = turbo)")
+        speed_box = QGroupBox("Step size per tick @ 20 Hz (trigger = mid, bumper = turbo)")
         form = QFormLayout()
 
         self._xy_speed_spins = {}
@@ -181,8 +181,19 @@ class GamepadPanel(QWidget):
 
         lb = self.xbox.get_button("lb")
         rb = self.xbox.get_button("rb")
-        turbo = self._turbo_spin.value() if lb else 1
-        bumper = lb
+        lt = self.xbox.get_axis("trigger_l")
+        rt = self.xbox.get_axis("trigger_r")
+
+        turbo_mult = self._turbo_spin.value()
+
+        # Speed tiers (applied to all axes):
+        #   none              → single step (1), edge-triggered
+        #   either trigger    → intermediate (20% of turbo × speed), continuous fire
+        #   either bumper     → turbo (speed × turbo_mult), continuous fire
+        # Bumper takes priority over trigger if both held.
+        intermediate = bool(lt) or bool(rt)
+        turbo        = bool(lb) or bool(rb)
+        continuous   = intermediate or turbo
 
         def _sign(v):
             return 1 if v > 0 else -1
@@ -190,22 +201,27 @@ class GamepadPanel(QWidget):
         def _should_fire(key, active):
             prev = self._prev_active[key]
             self._prev_active[key] = active
-            return active and (bumper or not prev)
+            return active and (continuous or not prev)
+
+        def _step(speed):
+            if turbo:
+                return speed * turbo_mult
+            if intermediate:
+                return max(1, round(speed * turbo_mult * 0.2))
+            return 1
 
         # Left stick — XY stage
-        xy_step = self._xy_speed_for_mag(mag) * turbo
         lx = self.xbox.get_axis("left_x")
         ly = self.xbox.get_axis("left_y")
         if _should_fire("lx", bool(lx)):
-            self.stage_controls.jog_axis("X", -_sign(lx) * (1 if rb else xy_step))
+            self.stage_controls.jog_axis("X", -_sign(lx) * _step(self._xy_speed_for_mag(mag)))
         if _should_fire("ly", bool(ly)):
-            self.stage_controls.jog_axis("Y", _sign(ly) * (1 if rb else xy_step))
+            self.stage_controls.jog_axis("Y", _sign(ly) * _step(self._xy_speed_for_mag(mag)))
 
         # D-pad — Z focus
         _, hat_y = self.xbox.get_hat()
-        z_step = self._z_speed_for_mag(mag) * turbo
         if hat_y:
-            self.stage_controls.jog_axis("Z", hat_y * (1 if rb else z_step))
+            self.stage_controls.jog_axis("Z", hat_y * _step(self._z_speed_for_mag(mag)))
 
     # ------------------------------------------------------------------
     # Helpers
