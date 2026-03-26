@@ -199,7 +199,9 @@ class FileSavePanel(QWidget):
         path = self._full_path(filename)
         pixmap = self.preview.image_label.pixmap()
         if pixmap:
-            pixmap.save(path, "PNG")
+            ox, oy = self.preview.display_offset
+            cropped = pixmap.copy(ox, oy, pixmap.width() - 2 * ox, pixmap.height() - 2 * oy)
+            cropped.save(path, "PNG")
             self._status_label.setText(f"Saved: {filename}")
         else:
             self._status_label.setText("No frame to save.")
@@ -208,7 +210,7 @@ class FileSavePanel(QWidget):
         self._save_settings()
         filename = self._build_filename("png")
         path = self._full_path(filename)
-        frame = self.preview.get_frame()
+        frame = self.preview.get_clean_frame()
         if frame is not None:
             cv2.imwrite(path, frame)
             self._status_label.setText(f"Captured: {filename}")
