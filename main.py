@@ -36,6 +36,7 @@ from PyQt5.QtCore import QPoint
 from controller import Controller
 from motors.factory import create_motor_manager
 from pixel_intensity_panel import PixelIntensityPanel
+from ui.app_shell import AppShell
 from ui.autofocus_panel import AutoFocusPanel
 from ui.controls import ControlWindow
 from ui.edge_detection_panel import EdgeDetectionPanel
@@ -158,15 +159,34 @@ class Application:
             file_save_panel=self.file_save_panel,
         )
 
+        # Three-column shell is the primary window.  The Launcher and all
+        # floating panels remain available (opened on demand from the shell).
+        self.shell = AppShell(
+            preview=self.preview,
+            launcher=self.launcher,
+            controls=self.controls,
+            stage_controls=self.stage_controls,
+            position_manager=self.position_manager,
+            autofocus_panel=self.autofocus_panel,
+            focus_panel=self.focus_panel,
+            focus_map_panel=self.focus_map_panel,
+            flat_field_panel=self.flat_field_panel,
+            layer_contrast_panel=self.layer_contrast_panel,
+            index_mark_panel=self.index_mark_panel,
+            edge_detection_panel=self.edge_detection_panel,
+            wafer_mapping_panel=self.wafer_mapping_panel,
+            file_save_panel=self.file_save_panel,
+            gamepad_panel=self.gamepad_panel,
+            pixel_panel=self.pixel_panel,
+        )
+
     def run(self):
         self.app.setQuitOnLastWindowClosed(False)
-        self.preview.destroyed.connect(self.app.quit)
-        self.launcher.destroyed.connect(self.app.quit)
-        self.preview.show()
-        self.launcher.show()
-        self.controls.show()
-        self.stage_controls.show()
-        self.file_save_panel.show()
+        self.shell.destroyed.connect(self.app.quit)
+        screen = QApplication.primaryScreen().availableGeometry()
+        self.shell.move(screen.left(), screen.top())
+        self.shell.resize(min(1700, screen.width()), min(1000, screen.height()))
+        self.shell.show()
         sys.exit(self.app.exec_())
 
 
