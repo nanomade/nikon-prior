@@ -109,6 +109,7 @@ class PreviewWindow(QWidget):
         self.zoom_window = ZoomWindow()
         self.zoom_window.hide()
         self.zoom_window.double_clicked.connect(self._on_zoom_double_clicked)
+        self.zoom_window.closed.connect(self._on_zoom_closed)
         self._zoom_center_frame = (0, 0)  # updated each frame
 
         self.last_time = time.time()
@@ -348,6 +349,19 @@ class PreviewWindow(QWidget):
             self.zoom_window.show()
         else:
             self.zoom_window.hide()
+
+    def _on_zoom_closed(self):
+        """User dismissed the zoom window — deactivate whichever mode opened it.
+
+        Emits the controller signals so both the preview state and the controls
+        checkboxes turn off together, mirroring an explicit uncheck.
+        """
+        if self.show_crosshair:
+            self.controller.crosshair_visible_changed.emit(False)
+        if self.zoom_under_cursor:
+            self.controller.zoom_under_cursor_changed.emit(False)
+        if self.measure_mode:
+            self.controller.measure_mode_changed.emit(False)
 
     def set_zoom_under_cursor(self, enabled: bool):
         self.zoom_under_cursor = enabled
@@ -797,6 +811,7 @@ class PreviewWindow(QWidget):
 class ZoomWindow(QWidget):
     # Emits (px, py) in the 500×500 zoom display when the user double-clicks
     double_clicked = pyqtSignal(int, int)
+    closed = pyqtSignal()   # user clicked the window's X button
 
     def __init__(self):
         super().__init__()
@@ -808,6 +823,13 @@ class ZoomWindow(QWidget):
         self.label.setGeometry(0, 0, 500, 500)
         self.label.setScaledContents(True)
         self.label.mouseDoubleClickEvent = self._on_double_click
+
+    def closeEvent(self, event):
+        # Closing the window deactivates whatever mode opened it (see
+        # PreviewWindow._on_zoom_closed) so the controls checkboxes stay in
+        # sync — otherwise the update loop just re-shows the window.
+        self.closed.emit()
+        event.accept()
 
     def _on_double_click(self, event):
         if event.button() == Qt.LeftButton:

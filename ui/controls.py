@@ -157,6 +157,17 @@ class ControlWindow(QWidget):
         zoom_cursor_check.stateChanged.connect(lambda state: controller.zoom_under_cursor_changed.emit(state == Qt.Checked))
         grid.addWidget(zoom_cursor_check, 10, 0, 1, 2)
 
+        # Keep these checkboxes in sync when their mode is turned off elsewhere
+        # (e.g. closing the Zoom View window) — uncheck without re-emitting.
+        def _uncheck(cb, v):
+            cb.blockSignals(True)
+            cb.setChecked(v)
+            cb.blockSignals(False)
+
+        controller.measure_mode_changed.connect(lambda v: _uncheck(measure_check, v))
+        controller.crosshair_visible_changed.connect(lambda v: _uncheck(self.crosshair_check, v))
+        controller.zoom_under_cursor_changed.connect(lambda v: _uncheck(zoom_cursor_check, v))
+
         full_xhair_check = QCheckBox("Full-Screen Crosshair + Ticks")
         full_xhair_check.setChecked(False)
         full_xhair_check.stateChanged.connect(lambda state: controller.full_crosshair_changed.emit(state == Qt.Checked))
