@@ -507,24 +507,13 @@ class AppShell(QMainWindow):
         right.add_section("Record", _record_panel(), expanded=False)
 
         # ── Splitter ──────────────────────────────────────────────────────────
-        # Wrap preview in a centering container so the image label stays centred
-        # when the shell is maximised or the splitter is resized.
-        preview_host = QWidget()
-        ph_lay = QHBoxLayout(preview_host)
-        ph_lay.setContentsMargins(0, 0, 0, 0)
-        ph_lay.addStretch(1)
-        _inner = QWidget()
-        _iv = QVBoxLayout(_inner)
-        _iv.setContentsMargins(0, 0, 0, 0)
-        _iv.addStretch(1)
-        _iv.addWidget(preview)
-        _iv.addStretch(1)
-        ph_lay.addWidget(_inner)
-        ph_lay.addStretch(1)
-
+        # The preview is added directly so it fills the central pane: its
+        # image_label has an Expanding size policy and update_frame scales each
+        # frame to the label's live size.  (No centering wrapper — that is for
+        # standa's fixed-size preview and would pin this one to its minimum.)
         splitter = QSplitter(Qt.Horizontal)
         splitter.addWidget(left)
-        splitter.addWidget(preview_host)
+        splitter.addWidget(preview)
         splitter.addWidget(right)
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
