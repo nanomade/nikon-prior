@@ -49,6 +49,7 @@ from ui.index_mark_panel import IndexMarkPanel
 from ui.launcher import LauncherWindow
 from ui.layer_contrast_panel import LayerContrastPanel
 from ui.preview import PreviewWindow
+from ui.sample_manager_panel import SampleManagerPanel
 from ui.stage_controls import PositionManagerWindow, StageControlWindow
 from ui.wafer_mapping_panel import WaferMappingPanel
 
@@ -135,6 +136,13 @@ class Application:
             self.preview, mm, self.controls,
         )
 
+        self.sample_manager_panel = SampleManagerPanel(
+            preview=self.preview, motor_manager=mm, controls=self.controls,
+            index_mark_panel=self.index_mark_panel,
+            stage_controls=self.stage_controls,
+            edge_detection_panel=self.edge_detection_panel,
+        )
+
         self.gamepad_panel = GamepadPanel(
             self.stage_controls, self.controller,
             autofocus_panel=self.autofocus_panel,
@@ -179,6 +187,7 @@ class Application:
             file_save_panel=self.file_save_panel,
             gamepad_panel=self.gamepad_panel,
             pixel_panel=self.pixel_panel,
+            sample_manager_panel=self.sample_manager_panel,
         )
 
     def run(self):

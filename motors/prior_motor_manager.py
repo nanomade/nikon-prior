@@ -181,6 +181,13 @@ class PriorMotorManager:
         invert = cfg.get("invert", 1)
         return self.get_position(ax) * step * invert
 
+    def get_position_units_cached(self, axis: str):
+        """Alias for get_position_units. Returns None for axes this rig lacks
+        (e.g. 'R') so ported standa code that polls them degrades gracefully."""
+        if axis.upper() not in self.step_config:
+            return None
+        return self.get_position_units(axis)
+
     # ------------------------------------------------------------------
     # Movement — internal (counts)
     # ------------------------------------------------------------------

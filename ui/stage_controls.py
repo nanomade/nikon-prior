@@ -128,6 +128,14 @@ class StageControlWindow(QWidget):
         self.position_manager = None  # injected after construction
         self.focus_panel = None       # injected after construction
 
+        # Sample-manager overlays on the stage map (set via the methods below).
+        self._flake_markers = []          # list of flake dicts from the sample manager
+        self._flake_transform = None
+        self._flake_transform_fresh = False
+        self._sample_name = ''
+        self._edge_polygon = None         # wafer-extents polygon, list of (x_mm, y_mm)
+        self._on_extents_updated = None   # optional callback(edges, r_deg, polygon)
+
         self._z_jog_step_um = 20   # updated by magnification signal; default = 10x value
         self._last_cmd_time = 0.0  # timestamp of last user-initiated move command
         self._init_axis_limits()
@@ -285,6 +293,36 @@ class StageControlWindow(QWidget):
                 pass
 
     # ------------------------------------------------------------------
+    # Sample-manager overlays (flake markers + wafer extents)
+    # ------------------------------------------------------------------
+
+    def set_flake_markers(self, flakes: list, transform: dict = None,
+                          transform_fresh: bool = False, sample_name: str = ''):
+        """Update the flake overlay on the stage map. Call when the sample changes."""
+        self._flake_markers = list(flakes) if flakes else []
+        self._flake_transform = transform
+        self._flake_transform_fresh = transform_fresh
+        self._sample_name = sample_name
+        self.update_all_displays()
+
+    def update_edge_positions(self, edges: dict, r_at_detection: float = 0.0,
+                              polygon: list = None):
+        """Store a detected wafer-extents polygon (stage mm) and refresh the map."""
+        self._edge_polygon = list(polygon) if polygon else None
+        self.update_all_displays()
+        if self._on_extents_updated is not None:
+            try:
+                self._on_extents_updated(dict(edges), r_at_detection,
+                                         list(polygon) if polygon else None)
+            except Exception as exc:
+                print(f"[StageControls] extents callback error: {exc}")
+
+    def clear_edge_positions(self):
+        """Clear the wafer-extents overlay without firing the save callback."""
+        self._edge_polygon = None
+        self.update_all_displays()
+
+    # ------------------------------------------------------------------
     # Display update
     # ------------------------------------------------------------------
 
@@ -368,6 +406,29 @@ class StageControlWindow(QWidget):
                     ly = int(np.clip(y0 + hm + th + 1, th + 1, h - 1))
                     cv2.putText(img, label, (lx + 1, ly + 1), font, scale, (0, 0, 0), thick + 1)
                     cv2.putText(img, label, (lx, ly), font, scale, (255, 255, 255), thick)
+
+        # Wafer-extents polygon (stage mm) from the sample manager
+        if self._edge_polygon and len(self._edge_polygon) >= 2:
+            pts = np.array(
+                [_um_to_px(px * _UM_PER_MM, py * _UM_PER_MM)
+                 for px, py in self._edge_polygon],
+                dtype=np.int32,
+            )
+            cv2.polylines(img, [pts], True, (180, 120, 0), 1)
+
+        # Flake markers from the sample manager (blue dots + name labels)
+        for flake in self._flake_markers:
+            fx_mm = flake.get("stage_x_mm")
+            fy_mm = flake.get("stage_y_mm")
+            if fx_mm is None or fy_mm is None:
+                continue
+            fpx, fpy = _um_to_px(fx_mm * _UM_PER_MM, fy_mm * _UM_PER_MM)
+            cv2.circle(img, (fpx, fpy), 4, (200, 60, 0), -1)
+            cv2.circle(img, (fpx, fpy), 4, (0, 0, 0), 1)
+            label = str(flake.get("name") or flake.get("id") or "")
+            if label:
+                cv2.putText(img, label, (fpx + 6, fpy - 4),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 0), 1)
 
         # Current position dot — always motor position
         cx, cy = _um_to_px(int(dot_x_mm * _UM_PER_MM), int(dot_y_mm * _UM_PER_MM))

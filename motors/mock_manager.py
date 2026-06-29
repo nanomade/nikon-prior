@@ -89,6 +89,13 @@ class MockMotorManager:
         factor = self.step_config.get(axis, {}).get("invert", 1)
         return self._positions_steps.get(axis, 0) * step_size * factor
 
+    def get_position_units_cached(self, axis: str):
+        """Alias for get_position_units. Returns None for axes this rig lacks
+        (e.g. 'R') so ported standa code that polls them degrades gracefully."""
+        if axis not in self.step_config:
+            return None
+        return self.get_position_units(axis)
+
     def get_speed(self, axis: str):
         return 0
 

@@ -404,7 +404,8 @@ class AppShell(QMainWindow):
                  flat_field_panel=None, layer_contrast_panel=None,
                  index_mark_panel=None, edge_detection_panel=None,
                  wafer_mapping_panel=None, file_save_panel=None,
-                 gamepad_panel=None, pixel_panel=None):
+                 gamepad_panel=None, pixel_panel=None,
+                 sample_manager_panel=None):
         super().__init__()
         self.setWindowTitle("Nikon / Prior ProScan III")
         self._wafer_mapping_panel = wafer_mapping_panel
@@ -471,17 +472,30 @@ class AppShell(QMainWindow):
         # ── Right: PROCESS ────────────────────────────────────────────────────
         right = _SidePanel("PROCESS")
 
-        right.add_section(
-            "Sample",
-            _btn_panel(("Find Wafer Extents", edge_detection_panel)),
-            expanded=True,
-        )
+        if sample_manager_panel is not None:
+            # The panel's own layout shows only the User + Sample groups; its
+            # coordinate-system and flake-catalogue widgets are placed in Find.
+            right.add_section("Sample", sample_manager_panel, expanded=True)
+        else:
+            right.add_section(
+                "Sample",
+                _btn_panel(("Find Wafer Extents", edge_detection_panel)),
+                expanded=True,
+            )
 
         def _find_panel():
             w = QWidget()
             v = QVBoxLayout(w)
             v.setContentsMargins(0, 0, 0, 0)
             v.setSpacing(0)
+            cat = getattr(sample_manager_panel, 'flake_catalogue_widget', None)
+            if cat is not None:
+                v.addWidget(_Section("Flake Catalogue", cat,
+                                     expanded=True, sub=True))
+            cs = getattr(sample_manager_panel, 'coord_system_widget', None)
+            if cs is not None:
+                v.addWidget(_Section("Coordinate System", cs,
+                                     expanded=False, sub=True))
             if index_mark_panel is not None:
                 v.addWidget(_Section("Index Marks",
                                      _btn_panel(("Index Mark Navigator…",
