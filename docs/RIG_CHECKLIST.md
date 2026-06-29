@@ -67,8 +67,15 @@ Notes:
       the same spot, flake re-centred (the round-trip — verify it lands).
 - [ ] Add 2–3 flakes; markers + names all sit in the right places.
 - [ ] Close and re-open the sample → flakes + markers restore from JSON.
+- [ ] **Z recall (the "Z is relative" issue):** does Navigate return to correct
+      *focus*, or only correct XY? Then power-cycle the controller and Navigate
+      again — does focus still land? (Expected to fail → see TODO "Z focus
+      recall".) Capture the facts that pick the fix:
+      - Does the ProScan Z count survive a power cycle? (Y/N)
+      - Does the stage have Z limit/home switches? (Y/N)
+      - Is focus repeatable enough to recall, or is per-site autofocus needed? 
 
-Notes (Navigate accuracy in µm? marker offset?):
+Notes (Navigate XY accuracy in µm? focus recall behaviour?):
 
 ## 5. Histogram
 - [ ] Imaging → Histogram rollout: expand → live B/G/R curves update.
