@@ -20,6 +20,14 @@ class MockMotorManager:
         self.step_config = {}
         self._positions_steps: dict[str, int] = {}
         self.load_step_config(config_file)
+        # Optional stage hardware present on this rig.  Ported standa modules
+        # query these to gate manipulator / rotation / heater features that the
+        # Prior ProScan III XYZ stage does not have.
+        self.capabilities = {
+            "manipulator": False,   # no dX/dY/dZ slide manipulator
+            "rotation": False,      # ProScan III base has no R axis
+            "heater": False,
+        }
 
     def load_step_config(self, filename: str = "motors/step_config.json"):
         if not os.path.exists(filename):

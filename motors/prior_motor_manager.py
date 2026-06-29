@@ -49,6 +49,14 @@ class PriorMotorManager:
         self.step_config = self._load_config()
         # Cached positions (counts) — updated from hardware on connect
         self._pos = {ax: 0 for ax in _AXES}
+        # Optional stage hardware present on this rig.  Ported standa modules
+        # query these to gate manipulator / rotation / heater features that the
+        # Prior ProScan III XYZ stage does not have.
+        self.capabilities = {
+            "manipulator": False,   # no dX/dY/dZ slide manipulator
+            "rotation": False,      # ProScan III base has no R axis
+            "heater": False,
+        }
 
     # ------------------------------------------------------------------
     # Config
