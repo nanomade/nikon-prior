@@ -405,7 +405,7 @@ class AppShell(QMainWindow):
                  index_mark_panel=None, edge_detection_panel=None,
                  wafer_mapping_panel=None, file_save_panel=None,
                  gamepad_panel=None, pixel_panel=None,
-                 sample_manager_panel=None):
+                 sample_manager_panel=None, histogram=None):
         super().__init__()
         self.setWindowTitle("Nikon / Prior ProScan III")
         self._wafer_mapping_panel = wafer_mapping_panel
@@ -419,6 +419,9 @@ class AppShell(QMainWindow):
             v.setContentsMargins(0, 0, 0, 0)
             v.setSpacing(0)
             v.addWidget(controls)
+            if histogram is not None:
+                v.addWidget(_Section("Histogram", histogram,
+                                     expanded=False, sub=True))
             if file_save_panel is not None:
                 v.addWidget(_Section("File Save", file_save_panel,
                                      expanded=False, sub=True))

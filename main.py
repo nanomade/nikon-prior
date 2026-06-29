@@ -42,6 +42,7 @@ from ui.controls import ControlWindow
 from ui.edge_detection_panel import EdgeDetectionPanel
 from ui.file_save_panel import FileSavePanel
 from ui.flat_field_panel import FlatFieldPanel
+from ui.histogram_widget import LiveHistogram
 from ui.focus_map_panel import FocusMapPanel
 from ui.focus_panel import FocusPanel
 from ui.gamepad_panel import GamepadPanel
@@ -120,6 +121,7 @@ class Application:
         )
         self.focus_map_panel.wafer_mapping_panel = self.wafer_mapping_panel
 
+        self.histogram = LiveHistogram(self.preview)
         self.layer_contrast_panel = LayerContrastPanel(self.preview)
         self.flat_field_panel = FlatFieldPanel(self.preview, mm)
         self.pixel_panel = PixelIntensityPanel(mm, self.preview)
@@ -188,6 +190,7 @@ class Application:
             gamepad_panel=self.gamepad_panel,
             pixel_panel=self.pixel_panel,
             sample_manager_panel=self.sample_manager_panel,
+            histogram=self.histogram,
         )
 
     def run(self):
