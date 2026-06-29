@@ -100,6 +100,7 @@ class Application:
             preview_obj=self.preview,
             stage_controls=self.stage_controls,
         )
+        self.preview.autofocus_panel = self.autofocus_panel  # Enter = autofocus
         self.controller.magnification_changed.connect(
             self.autofocus_panel.apply_defaults_for_mag
         )
@@ -182,6 +183,19 @@ class Application:
 
     def run(self):
         self.app.setQuitOnLastWindowClosed(False)
+
+        # App-level input routing: keyboard stage jog / focus / autofocus work
+        # regardless of which widget has focus, and the wheel doesn't hijack
+        # spin boxes in the side panels.  Keep references so they aren't GC'd.
+        from ui.input_routing import GlobalKeyRouter, SpinBoxWheelGuard
+        self._key_router = GlobalKeyRouter(
+            self.preview, motor_manager=self.motor_manager,
+            gamepad_panel=self.gamepad_panel,
+        )
+        self._wheel_guard = SpinBoxWheelGuard()
+        self.app.installEventFilter(self._key_router)
+        self.app.installEventFilter(self._wheel_guard)
+
         self.shell.destroyed.connect(self.app.quit)
         screen = QApplication.primaryScreen().availableGeometry()
         self.shell.move(screen.left(), screen.top())

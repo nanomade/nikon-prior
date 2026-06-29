@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import time
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar, QSizePolicy
-from PyQt5.QtCore import QTimer, Qt, QPoint, pyqtSignal
+from PyQt5.QtCore import QTimer, Qt, QPoint, QEvent, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QMouseEvent
 
 from camera_manager import create_camera_manager
@@ -48,10 +48,17 @@ class PreviewWindow(QWidget):
         self.image_label.mousePressEvent = self.handle_click
         self.image_label.mouseDoubleClickEvent = self.handle_double_click
         self.image_label.mouseMoveEvent = self.track_mouse
+        self.image_label.wheelEvent = self.handle_wheel
+        # Keyboard jog only fires while the cursor is over the preview; Enter/Leave
+        # on the image label tracks that and grabs keyboard focus.
+        self.image_label.installEventFilter(self)
+        self._cursor_over_preview = False
+        self.setFocusPolicy(Qt.StrongFocus)
 
         self.motor_manager = None    # injected by stagecontrol after construction
         self.stage_controls = None   # injected by stagecontrol after construction
         self.manip_controls = None   # injected by stagecontrol after construction
+        self.autofocus_panel = None  # injected by stagecontrol after construction
         self.layer_panel      = None    # injected by LayerContrastPanel on construction
         self.mark_panel       = None    # injected by IndexMarkPanel on construction
         self.flat_field_panel = None    # injected by FlatFieldPanel on construction
@@ -461,6 +468,116 @@ class PreviewWindow(QWidget):
         dx_mm =  dpx / ppm / 1000.0
         dy_mm = -dpy / ppm / 1000.0
         self.motor_manager.move_relative_xy_units(dx_mm, dy_mm, wait=False)
+
+    # ── Mouse wheel + keyboard jog ──────────────────────────────────────────
+    # Z focus step (µm) per wheel notch / numpad +/- press, by magnification.
+    # Higher mag → shallower depth of focus → smaller step.
+    _WHEEL_Z_UM = {"5x": 20, "10x": 10, "20x": 5, "50x": 2, "100x": 1}
+    # Stage XY jog (µm) per numpad press, by magnification (no modifier = base).
+    _KB_STAGE_UM = {"5x": 50, "10x": 25, "20x": 10, "50x": 4, "100x": 2}
+
+    def handle_wheel(self, event):
+        """Mouse wheel over the preview jogs Z focus; Shift = fine (1 µm)."""
+        if self.stage_controls is None:
+            return
+        delta = event.angleDelta().y()
+        if delta == 0:
+            return
+        mag = getattr(self, "magnification", "10x") or "10x"
+        step_um = 1 if (event.modifiers() & Qt.ShiftModifier) \
+            else self._WHEEL_Z_UM.get(mag, 5)
+        direction = 1 if delta > 0 else -1
+        self.stage_controls.jog_axis("Z", direction * step_um)
+
+    def eventFilter(self, obj, event):
+        if obj is self.image_label:
+            if event.type() == QEvent.Enter:
+                self._cursor_over_preview = True
+                self.setFocus()
+            elif event.type() == QEvent.Leave:
+                self._cursor_over_preview = False
+        return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event):
+        if not self._cursor_over_preview:
+            super().keyPressEvent(event)
+            return
+
+        key = event.key()
+        mods = event.modifiers()
+        shift = bool(mods & Qt.ShiftModifier)
+        ctrl = bool(mods & Qt.ControlModifier)
+        mag = getattr(self, "magnification", "10x") or "10x"
+        sc = self.stage_controls
+        mm = self.motor_manager
+
+        # ── Arrow keys: pan by 90 % of the field of view ────────────────────
+        if key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+            if sc is None:
+                return
+            sb = self.get_scale_bar_pixels(mag)
+            if sb is None:
+                return
+            ppm = sb[2]   # pixels per µm
+            fov_x_um = self.native_width / ppm
+            fov_y_um = self.native_height / ppm
+            if key == Qt.Key_Right:
+                sc.jog_axis("X", +round(fov_x_um * 0.9))
+            elif key == Qt.Key_Left:
+                sc.jog_axis("X", -round(fov_x_um * 0.9))
+            elif key == Qt.Key_Up:
+                sc.jog_axis("Y", +round(fov_y_um * 0.9))
+            elif key == Qt.Key_Down:
+                sc.jog_axis("Y", -round(fov_y_um * 0.9))
+            return
+
+        # ── Numpad 1–9: stage XY jog (8-way) ────────────────────────────────
+        # Shift = single µm (precision); Ctrl = turbo (5× base); else base.
+        base = self._KB_STAGE_UM.get(mag, 10)
+        steps = 1 if shift else (base * 5 if ctrl else base)
+        numpad_xy = {
+            Qt.Key_6: (+steps, 0), Qt.Key_4: (-steps, 0),
+            Qt.Key_8: (0, +steps), Qt.Key_2: (0, -steps),
+            Qt.Key_9: (+steps, +steps), Qt.Key_7: (-steps, +steps),
+            Qt.Key_3: (+steps, -steps), Qt.Key_1: (-steps, -steps),
+        }
+        if (mods & Qt.KeypadModifier) and key in numpad_xy:
+            if sc is None:
+                return
+            dx, dy = numpad_xy[key]
+            if dx:
+                sc.jog_axis("X", dx)
+            if dy:
+                sc.jog_axis("Y", dy)
+            return
+
+        # ── Numpad +/- and PageUp/Down: Z focus (mag-scaled step) ───────────
+        if key in (Qt.Key_PageUp, Qt.Key_PageDown) or \
+                ((mods & Qt.KeypadModifier) and key in (Qt.Key_Plus, Qt.Key_Minus)):
+            if sc is None:
+                return
+            z_um = 1 if shift else getattr(sc, "_z_jog_step_um", 10)
+            up = key in (Qt.Key_PageUp, Qt.Key_Plus)
+            sc.jog_axis("Z", +z_um if up else -z_um)
+            return
+
+        # ── Enter / Return: run autofocus ───────────────────────────────────
+        if key in (Qt.Key_Return, Qt.Key_Enter):
+            af = getattr(self, "autofocus_panel", None)
+            if af is not None:
+                af._start()
+            return
+
+        super().keyPressEvent(event)
+
+    def _dispatch_global_key(self, event):
+        """Run a keyboard shortcut from the global router, bypassing the cursor gate."""
+        was = self._cursor_over_preview
+        self._cursor_over_preview = True
+        try:
+            self.keyPressEvent(event)
+        finally:
+            self._cursor_over_preview = was
 
     def set_temporal_average(self, n):
         """Set rolling-average depth. n=1 disables averaging."""

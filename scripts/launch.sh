@@ -23,7 +23,19 @@ source "$VENV_DIR/bin/activate"
 
 # ── Environment ───────────────────────────────────────────────────────────────
 export QT_QPA_PLATFORM=xcb   # suppress Wayland warnings under XWayland
+
+# Cap native math thread-pools — unbounded BLAS/OpenMP pools spawn ~170 native
+# threads, amplifying heap pressure and instability for no benefit here.
+export OMP_NUM_THREADS=4
+export OPENBLAS_NUM_THREADS=4
+export MKL_NUM_THREADS=4
+export NUMEXPR_NUM_THREADS=4
+export VECLIB_MAXIMUM_THREADS=4
+
 cd "$PROJECT_DIR"
 
 # ── Launch ────────────────────────────────────────────────────────────────────
-exec python main.py "$@"
+# Keep a rolling log so GUI-launched crashes aren't silent.
+LOG_DIR="$PROJECT_DIR/crash_logs"
+mkdir -p "$LOG_DIR"
+exec python main.py "$@" >>"$LOG_DIR/launcher.log" 2>&1

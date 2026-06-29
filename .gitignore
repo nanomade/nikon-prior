@@ -4,5 +4,6 @@ __pycache__/
 .env
 ui_settings.json
 autofocus_logs/
+crash_logs/
 data/
 *.log
