@@ -95,30 +95,25 @@ code queries these to gate absent-hardware features.
 - [ ] Escape panic-stop actually halts a long ProScan III move (`motor.stop()`).
 - [ ] (See also "Immediate setup tasks": step size, scale bar, presets.)
 
-### Z focus recall — "Z is relative" *(priority; flagged at the rig)*
-The driver already reads/commands Z absolutely (`P[2]` counts;
-`move_absolute_units('Z', mm)`), and catalogue Navigate recalls the saved
-`stage_z_mm`. The real problem: the **ProScan Z counter has no repeatable
-physical datum** — its origin is set arbitrarily at power-on, so a saved
-absolute Z is only valid within that session. XY survive re-mount via corner
-registration; Z has no equivalent, so focus recall drifts across power cycles
-and sample-height changes. (The `Z` zero command also zeros X/Y, so it can't
-independently re-datum Z.)
+### Z focus recall — resolved: no Z recall, autofocus instead
+**Root cause (rig):** the Nikon coarse-focus knob is *manual and unsensed*, so
+the ProScan Z counter is decoupled from actual focus. A saved absolute Z is
+therefore meaningless for focus — and commanding it is unsafe (could drive the
+objective into the sample). So "Z recall" does not make sense on this rig.
 
-Options (pick after checking the rig — see below):
-- **A. Autofocus on Navigate (recommended):** restore XY + saved Z as a coarse
-  start, then run autofocus to lock focus. Robust to Z-datum drift; reuses the
-  existing `AutoFocusPanel` / focus map. This is how standa leans on autofocus.
-- **B. Session Z datum + absolute UI:** establish a repeatable Z zero (home to a
-  Z limit if the stage has one, or focus on the substrate surface and store the
-  offset), add an absolute Z readout/slider, and drop the misleading "(rel)".
-- **C. Focus relative to substrate surface:** store a per-sample "substrate
-  focus Z" and save flake focus as an offset from it (standa's "mark substrate
-  focus" idea) — survives re-datum as long as the substrate is re-marked.
+**Done:** catalogue Navigate now restores **XY only** (single combined,
+non-blocking move) and never commands a saved Z. The "(rel)" Z label is correct
+and stays. Z control remains relative (velocity slider + jog), which is right
+for a manual-knob focus.
 
-Rig facts that decide it: does the ProScan Z retain its count across a power
-cycle? does the stage have Z limit/home switches? is focus repeatable enough to
-recall, or is per-site autofocus needed anyway?
+**Remaining (optional):** autofocus is the only sensible focus mechanism, and
+only when the stage is already *roughly* in focus (within capture range).
+- [ ] Add an opt-in "Autofocus after Navigate" (checkbox/button) that runs
+      `AutoFocusPanel` once the XY move settles — off by default (running it
+      wildly out of focus just wastes a sweep).
+- [ ] Consider the same XY-only treatment for `PositionManagerWindow` recall
+      (line ~628 still commands absolute Z; fine within a session, stale after
+      the knob moves).
 
 ### Pending batches (agnostic — keep pulling)
 - [ ] **Flake detection** — `vision/flake_detect_v3.py`, `flake_classify.py`,

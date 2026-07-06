@@ -1055,20 +1055,22 @@ class SampleManagerPanel(QWidget):
                 fx = xc + dx * cos_r + dy * sin_r
                 fy = yc - dx * sin_r + dy * cos_r
 
-        move = self.mm.move_absolute_units
-        z = flake.get('z_mm')                       # 0/None = no real focus (e.g. raw map mark)
         try:
-            move('X', fx)
-            move('Y', fy)
-            if z:                                   # only drive Z to a real focus height
-                move('Z', z)
+            # Single combined, non-blocking XY move (avoids a two-step G and
+            # keeps the GUI responsive during the traverse).
+            self.mm.move_absolute_xy_units(fx, fy, wait=False)
+            # Z is intentionally NOT recalled. The Nikon coarse-focus knob is
+            # manual and unsensed, so a saved absolute Z does not correspond to
+            # actual focus — and commanding it could drive the objective into
+            # the sample. Focus is re-established with autofocus once the stage
+            # is roughly in focus (see TODO "Z focus recall").
         except Exception as exc:
             QMessageBox.warning(self, "Navigation error",
                                 f"Stage move failed:\n{exc}")
             return
         if self.stage_controls is not None:
-            z_set = z if z else (self.mm.get_position_units_cached('Z') or 0.0)
-            self.stage_controls.set_move_setpoint(fx, fy, z_set)
+            z_now = self.mm.get_position_units_cached('Z') or 0.0
+            self.stage_controls.set_move_setpoint(fx, fy, z_now)
 
         # Logbook
         import core.logbook as _lb

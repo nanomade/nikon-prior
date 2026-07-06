@@ -296,6 +296,21 @@ class StageControlWindow(QWidget):
     # Sample-manager overlays (flake markers + wafer extents)
     # ------------------------------------------------------------------
 
+    def set_move_setpoint(self, x_mm: float, y_mm: float, z_mm: float = 0.0):
+        """Reflect a programmatic XY move destination on the sliders + map.
+
+        Called after Navigate so the setpoint readout and green dot jump to the
+        destination immediately. Z is ignored by design — focus is not recalled
+        on this rig (the coarse-focus knob is manual and unsensed).
+        """
+        self._last_cmd_time = time.time()
+        for slider, mm_val in ((self.stage_x_slider, x_mm),
+                               (self.stage_y_slider, y_mm)):
+            slider.blockSignals(True)
+            slider.setValue(int(round(mm_val * _UM_PER_MM)))
+            slider.blockSignals(False)
+        self.update_all_displays()
+
     def set_flake_markers(self, flakes: list, transform: dict = None,
                           transform_fresh: bool = False, sample_name: str = ''):
         """Update the flake overlay on the stage map. Call when the sample changes."""
