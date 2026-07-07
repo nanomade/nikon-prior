@@ -47,6 +47,14 @@ class FlatFieldPanel(QWidget):
         self._flat      = None
         self._running   = False
 
+        # Luminance gain map, precomputed once in _rebuild_flat instead of
+        # every preview frame. shape (h, w, 1); scaled copy cached per frame
+        # resolution; reused float32 buffer avoids per-frame allocations.
+        self._gain              = None
+        self._gain_scaled       = None
+        self._gain_scaled_shape = None
+        self._corr_buf          = None
+
         # ── Collection group ──────────────────────────────────────────────
         col_group = QGroupBox("Automatic background collection")
         col_grid  = QGridLayout()
@@ -248,6 +256,10 @@ class FlatFieldPanel(QWidget):
 
     def _rebuild_flat(self):
         if self._flat_raw is None:
+            self._flat = None
+            self._gain = None
+            self._gain_scaled = None
+            self._gain_scaled_shape = None
             return
         sigma = self._sigma_slider.value()
         if sigma > 0:
@@ -255,32 +267,51 @@ class FlatFieldPanel(QWidget):
         else:
             blurred = self._flat_raw.copy()
         self._flat = np.clip(blurred, 1.0, None)
+        # Precompute the luminance gain map now (constant until the flat or σ
+        # changes) so apply_correction is just a multiply per frame.
+        flat_lum = self._flat.mean(axis=2, keepdims=True)
+        self._gain = (flat_lum.max() / np.clip(flat_lum, 1.0, None)).astype(np.float32)
+        self._gain_scaled = None
+        self._gain_scaled_shape = None
 
     # ── Per-frame correction (called from preview.update_frame) ───────────
 
     def apply_correction(self, frame):
         """
-        Divide frame by the flat field and stretch contrast per channel.
-        Returns the corrected uint8 BGR frame, or the original if
-        correction is disabled or no background has been built.
+        Apply flat-field gain to correct vignetting.
+
+        Computes a luminance gain map (flat_max / flat_lum) so that the
+        brightest area in the flat field (typically the illumination centre)
+        gets gain ≈ 1.0 and vignetted areas get gain > 1.0.  A single gain
+        value is applied to all three channels to preserve colour balance —
+        per-channel division would rebalance B:G:R by the flat's own colour
+        and shift the substrate hue.
+
+        Returns the corrected uint8 BGR frame, or the original if correction
+        is disabled or no background has been built.
         """
-        if not self._enable_chk.isChecked() or self._flat is None:
+        if not self._enable_chk.isChecked() or self._gain is None:
             return frame
 
-        flat = self._flat
-        if flat.shape[:2] != frame.shape[:2]:
-            flat = cv2.resize(flat, (frame.shape[1], frame.shape[0]),
-                              interpolation=cv2.INTER_LINEAR)
+        # Use the precomputed gain map (luminance-based: vignetting is achromatic,
+        # so one map for all channels avoids colour artefacts).  Resize to the
+        # frame only when the resolution differs, caching the result.
+        if self._gain.shape[:2] == frame.shape[:2]:
+            gain = self._gain
+        else:
+            if self._gain_scaled_shape != frame.shape[:2]:
+                g = cv2.resize(self._gain, (frame.shape[1], frame.shape[0]),
+                               interpolation=cv2.INTER_LINEAR)
+                self._gain_scaled = g[:, :, None]
+                self._gain_scaled_shape = frame.shape[:2]
+            gain = self._gain_scaled
 
-        mean_val = flat.mean()
-        corrected = frame.astype(np.float32) / flat * mean_val
-
-        # Stretch using a single shared scale across all channels so that
-        # colour balance is preserved.  Per-channel independent stretching
-        # would amplify any residual colour cast in low-signal channels.
-        lo = corrected.min()
-        hi = corrected.max()
-        if hi > lo:
-            corrected = (corrected - lo) / (hi - lo) * 255.0
-
-        return np.clip(corrected, 0, 255).astype(np.uint8)
+        # Multiply into a reused float32 buffer and clip in place — avoids
+        # per-frame allocations.
+        buf = self._corr_buf
+        if buf is None or buf.shape != frame.shape:
+            buf = self._corr_buf = np.empty(frame.shape, np.float32)
+        max_val = 4095.0 if frame.dtype == np.uint16 else 255.0
+        np.multiply(frame, gain, out=buf)
+        np.clip(buf, 0, max_val, out=buf)
+        return buf.astype(frame.dtype)
