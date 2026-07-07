@@ -1,5 +1,5 @@
 {
-  "_comment": "Exposure defaults in microseconds per objective, at 1x binning (full res) under tungsten illumination. Anchored on 5x=40ms measured 2026-07-07; other mags scaled by the previous log-interpolated ratios. Drop ~4x/16x when using 2x/4x binning (charge pooling). wb: manual Red/Blue BalanceRatio defaults for the tungsten illuminator, tuned 2026-07-07.",
+  "_comment": "Exposure defaults in microseconds per objective, at 1x full resolution (this rig always runs 1x) under tungsten illumination. Anchored on 5x=40ms measured 2026-07-07; other mags scaled by the previous log-interpolated ratios. wb: manual Red/Blue BalanceRatio defaults for the tungsten illuminator, tuned 2026-07-07.",
   "exposure_defaults": {
     "5x":   40000,
     "10x":  80000,
