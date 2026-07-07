@@ -9,5 +9,5 @@ Icon=/opt/nikon-prior/assets/nikon-prior.svg
 Terminal=false
 Categories=Science;Education;
 Keywords=microscope;camera;stage;imaging;prior;nikon;
-StartupWMClass=main
+StartupWMClass=nikon-prior
 StartupNotify=true

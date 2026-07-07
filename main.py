@@ -31,6 +31,13 @@ from PyQt5.QtWidgets import QApplication
 # This must come before all other local imports.
 _qapp = QApplication(sys.argv)
 
+# Link the running window to its launcher so GNOME shows the app icon instead
+# of the generic gear. applicationName sets the window's WM_CLASS class part
+# (default would be "main.py", which StartupWMClass can't match) and
+# desktopFileName is the direct hint, keyed to nikon-prior.desktop's basename.
+_qapp.setApplicationName("nikon-prior")
+_qapp.setDesktopFileName("nikon-prior")
+
 from PyQt5.QtCore import QPoint
 
 from controller import Controller
