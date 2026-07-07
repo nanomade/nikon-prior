@@ -1,0 +1,13 @@
+# Nikon-Prior microscope control — Python dependencies
+# Install:  python3 -m venv ~/venv && ~/venv/bin/pip install -r requirements.txt
+# (launch.sh auto-detects the venv; see scripts/launch.sh)
+
+PyQt5>=5.15
+numpy>=2.0
+opencv-python>=4.10       # consider opencv-python-headless (avoids Qt plugin clash; see main.py)
+vmbpy>=1.2                # Allied Vision Vimba X SDK (Alvium camera)
+pyserial>=3.5             # Prior ProScan III stage
+pygame>=2.6               # gamepad axes
+scipy>=1.14               # vision/optical_contrast (Fresnel model)
+matplotlib>=3.10          # tools/make_datasheet
+pillow>=12                # vision/dzi, tools/make_map

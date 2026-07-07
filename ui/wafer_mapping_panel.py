@@ -22,7 +22,8 @@ class WaferScanWorker(QThread):
 
     def __init__(self, motor_manager, preview, wafer_boundaries,
                  step_x=0.5, step_y=0.5, settling_time=0.5,
-                 autofocus_panel=None, focus_map_panel=None, safe_zone_mm=0.5):
+                 autofocus_panel=None, focus_map_panel=None, safe_zone_mm=0.5,
+                 controls=None):
         super().__init__()
         self.motor_manager   = motor_manager
         self.preview         = preview
@@ -33,9 +34,23 @@ class WaferScanWorker(QThread):
         self.autofocus_panel = autofocus_panel
         self.focus_map_panel = focus_map_panel
         self.safe_zone_mm    = safe_zone_mm
+        self.controls        = controls   # ControlWindow, for get_imaging_metadata()
         self.should_stop     = False
         self.scan_data       = []
         self.scan_folder     = None
+
+    @staticmethod
+    def _write_meta(folder, meta):
+        """Atomically (re)write scan_metadata.json — standa_stacker schema,
+        so the detect → map → catalogue pipeline runs on our scans unmodified."""
+        import json
+        path = os.path.join(folder, 'scan_metadata.json')
+        try:
+            with open(path + '.tmp', 'w') as fh:
+                json.dump(meta, fh, indent=2)
+            os.replace(path + '.tmp', path)
+        except Exception:
+            pass
 
     def stop(self):
         self.should_stop = True
@@ -167,11 +182,16 @@ class WaferScanWorker(QThread):
           1. Focus map (if available and has data) — instant Z move.
           2. Autofocus refinement (if enabled) — runs after focus map move,
              or standalone if no map data.
+
+        Returns (focus_ok, z_plane_mm): whether any focus source succeeded,
+        and the focus-map predicted Z (None if no map data) — both recorded
+        in scan_metadata.json.
         """
         z_cfg     = self.motor_manager.step_config.get('Z', {})
         z_step_mm = z_cfg.get('step', 0.001)
 
         used_map = False
+        z_pred = None
         if self.focus_map_panel is not None:
             z_pred = self.focus_map_panel.get_focus_z(x_pos, y_pos)
             if z_pred is not None:
@@ -189,8 +209,14 @@ class WaferScanWorker(QThread):
 
         # Run autofocus: either as a refinement pass after the map move,
         # or as the primary focus source if no map data was available.
+        af_ok = None
         if self.autofocus_panel is not None:
-            self._run_autofocus_at_point()
+            af_ok = self._run_autofocus_at_point()
+
+        # ok if autofocus improved, or the map placed us (autofocus "no
+        # improvement" after a map move still means we're in focus).
+        focus_ok = bool(af_ok) or used_map
+        return focus_ok, z_pred
 
     # ── Main scan ──────────────────────────────────────────────────────────
 
@@ -229,6 +255,50 @@ class WaferScanWorker(QThread):
             total_points  = len(x_points) * len(y_points)
             current_point = 0
             self.scan_data = []
+
+            # ── scan_metadata.json skeleton (standa_stacker schema) ────────
+            imaging = {}
+            if self.controls is not None:
+                try:
+                    imaging = self.controls.get_imaging_metadata()
+                except Exception:
+                    imaging = {}
+            mag = imaging.get('magnification', getattr(self.preview, 'magnification', '10x'))
+            ffp = getattr(self.preview, 'flat_field_panel', None)
+            try:
+                flat_applied = bool(ffp is not None and ffp._enable_chk.isChecked())
+            except Exception:
+                flat_applied = False
+
+            meta = {
+                'status': 'running',
+                'filter_nm': None,
+                'scan_params': {
+                    'cx': float((sx_lo + sx_hi) / 2.0),
+                    'cy': float((sy_lo + sy_hi) / 2.0),
+                    'half_x': float((sx_hi - sx_lo) / 2.0),
+                    'half_y': float((sy_hi - sy_lo) / 2.0),
+                    'step_x': float(self.step_x),
+                    'step_y': float(self.step_y),
+                    'settling_s': float(self.settling_time),
+                    'use_autofocus': self.autofocus_panel is not None,
+                    'output_dir': os.path.abspath(os.getcwd()),
+                    'sample_name': self.scan_folder,
+                    'mag': mag,
+                    'exposure_ms': imaging.get('exposure_ms'),
+                    'flat_field_applied': flat_applied,
+                },
+                'imaging': imaging,
+                'focus_surface': None,
+                'flat_field_applied': flat_applied,
+                'grid': {'nx': int(len(x_points)), 'ny': int(len(y_points)),
+                         'n_total': int(total_points)},
+                'total_images': 0,
+                'started': datetime.now().isoformat(),
+                'finished': None,
+                'images': [],
+            }
+            self._write_meta(self.scan_folder, meta)
 
             self.progress.emit(
                 f"Scanning: {len(x_points)}×{len(y_points)} = {total_points} points", 5)
@@ -277,22 +347,36 @@ class WaferScanWorker(QThread):
                         break
 
                     # Focus (map and/or autofocus)
+                    focus_ok, z_plane = True, None
                     if self.focus_map_panel is not None or self.autofocus_panel is not None:
                         self.progress.emit(
                             f"Focusing at ({x_pos:.2f}, {y_pos:.2f})…", pct)
-                        self._apply_focus_at_point(x_pos, y_pos)
+                        focus_ok, z_plane = self._apply_focus_at_point(x_pos, y_pos)
 
-                    # Capture and save
-                    frame = self.preview.get_frame()
+                    # Capture and save — clean frame (no overlays), standa
+                    # filename pattern so pipeline tools recognise the tiles.
+                    frame = self.preview.get_clean_frame()
+                    if frame is None:
+                        frame = self.preview.get_frame()
                     if frame is not None:
-                        filename = f"img_X{x_pos:+.3f}_Y{y_pos:+.3f}.png"
+                        try:
+                            z_actual = float(self.motor_manager.get_position_units('Z'))
+                        except Exception:
+                            z_actual = 0.0
+                        filename = f"img_X{x_pos:+.3f}_Y{y_pos:+.3f}_Z{z_actual:.4f}_{mag}.png"
                         cv2.imwrite(os.path.join(self.scan_folder, filename), frame)
                         point_data = {
-                            'x': x_pos, 'y': y_pos,
                             'filename': filename,
+                            'x_mm': float(x_pos), 'y_mm': float(y_pos),
+                            'z_plane_mm': (float(z_plane) if z_plane is not None else None),
+                            'z_actual_mm': z_actual,
+                            'focus_ok': bool(focus_ok),
                             'timestamp': datetime.now().isoformat(),
                         }
                         self.scan_data.append(point_data)
+                        meta['images'].append(point_data)
+                        meta['total_images'] = len(meta['images'])
+                        self._write_meta(self.scan_folder, meta)
                         self.image_captured.emit(x_pos, y_pos, point_data)
 
                     self.progress.emit(
@@ -305,6 +389,9 @@ class WaferScanWorker(QThread):
                 self.motor_manager.move_absolute_units('Y', 0)
 
             status = 'stopped' if self.should_stop else 'success'
+            meta['status'] = status
+            meta['finished'] = datetime.now().isoformat()
+            self._write_meta(self.scan_folder, meta)
             self.progress.emit(
                 "Scan complete." if status == 'success' else "Scan stopped.", 100)
             self.finished.emit({
@@ -322,13 +409,14 @@ class WaferScanWorker(QThread):
 
 class WaferMappingPanel(QWidget):
     def __init__(self, preview_window, motor_manager, stage_controls,
-                 autofocus_panel=None, focus_map_panel=None):
+                 autofocus_panel=None, focus_map_panel=None, controls=None):
         super().__init__()
         self.preview         = preview_window
         self.motor_manager   = motor_manager
         self.stage_controls  = stage_controls
         self.autofocus_panel = autofocus_panel
         self.focus_map_panel = focus_map_panel
+        self.controls        = controls   # ControlWindow, for scan metadata
         self.worker          = None
         self.scan_data      = []
         self.wafer_boundaries = None
@@ -479,6 +567,26 @@ class WaferMappingPanel(QWidget):
         self.open_folder_btn.setEnabled(False)
         summary_layout.addWidget(self.open_folder_btn)
 
+        # ── Detect & Map (flake pipeline; subprocess via core.pipeline_cmds) ──
+        pipeline_row = QHBoxLayout()
+        self.detect_btn = QPushButton("Detect Flakes")
+        self.detect_btn.setToolTip(
+            "Run vision/flake_detect_v3.py on the last scan.\n"
+            "Uses <scan>/contrast_calibration.json if present, else generates an\n"
+            "analytical graphene calibration (90 nm oxide) first.")
+        self.detect_btn.clicked.connect(self.run_detect)
+        self.detect_btn.setEnabled(False)
+        pipeline_row.addWidget(self.detect_btn)
+
+        self.map_btn = QPushButton("Make Map")
+        self.map_btn.setToolTip(
+            "Stitch the last scan into a zoomable HTML map (tools/make_map.py)\n"
+            "with any detected candidates overlaid, and open it in the browser.")
+        self.map_btn.clicked.connect(self.run_map)
+        self.map_btn.setEnabled(False)
+        pipeline_row.addWidget(self.map_btn)
+        summary_layout.addLayout(pipeline_row)
+
         summary_group.setLayout(summary_layout)
         layout.addWidget(summary_group)
 
@@ -574,6 +682,7 @@ class WaferMappingPanel(QWidget):
             autofocus_panel=self.autofocus_panel if use_autofocus else None,
             focus_map_panel=self.focus_map_panel if use_focus_map else None,
             safe_zone_mm=safe_zone_mm,
+            controls=self.controls,
         )
         self.worker.progress.connect(self._on_progress)
         self.worker.image_captured.connect(self._on_image_captured)
@@ -638,6 +747,8 @@ class WaferMappingPanel(QWidget):
             self.current_scan_folder = folder
             self.folder_label.setText(f"Scan folder: {folder}")
             self.open_folder_btn.setEnabled(True)
+            self.detect_btn.setEnabled(True)
+            self.map_btn.setEnabled(True)
 
     def _update_scan_time(self):
         if self.scan_start_time is None:
@@ -653,6 +764,76 @@ class WaferMappingPanel(QWidget):
                 f"Elapsed: {el_m:02d}:{el_s:02d}  ETA: {rem_m:02d}:{rem_s:02d}")
         else:
             self.time_label.setText(f"Elapsed: {el_m:02d}:{el_s:02d}")
+
+    # ── Flake pipeline drivers (subprocess argv from core.pipeline_cmds) ─────
+
+    def _run_pipeline_process(self, cmd, label, on_done=None):
+        """Run a pipeline tool via QProcess, streaming output into the log."""
+        from PyQt5.QtCore import QProcess
+        proc = QProcess(self)
+        proc.setProcessChannelMode(QProcess.MergedChannels)
+        proc.setWorkingDirectory(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        self.results_text.append(f"── {label}: {' '.join(os.path.basename(c) for c in cmd[:3])} …")
+
+        def _read():
+            out = bytes(proc.readAllStandardOutput()).decode(errors='replace').rstrip()
+            if out:
+                self.results_text.append(out)
+
+        def _finished(code, _status):
+            self.results_text.append(f"── {label} finished (exit {code})")
+            self.detect_btn.setEnabled(True)
+            self.map_btn.setEnabled(True)
+            if code == 0 and on_done:
+                on_done()
+            self._pipeline_proc = None
+
+        proc.readyReadStandardOutput.connect(_read)
+        proc.finished.connect(_finished)
+        self.detect_btn.setEnabled(False)
+        self.map_btn.setEnabled(False)
+        self._pipeline_proc = proc   # keep a reference while running
+        proc.start(cmd[0], cmd[1:])
+
+    def _ensure_calibration(self, folder):
+        """Return path to a contrast calibration, generating an analytical
+        graphene one (90 nm oxide) if the scan has none."""
+        cal = os.path.join(folder, 'contrast_calibration.json')
+        if os.path.exists(cal):
+            return cal
+        self.results_text.append("No contrast calibration — generating analytical (graphene, 90 nm oxide)…")
+        from vision.optical_contrast import analytical_calibration
+        from vision.contrast_cal import write_contrast_calibration
+        write_contrast_calibration(cal, analytical_calibration(oxide_nm=90.0, material='graphene'))
+        return cal
+
+    def run_detect(self):
+        folder = self.current_scan_folder
+        if not folder or not os.path.exists(os.path.join(folder, 'scan_metadata.json')):
+            QMessageBox.warning(self, "Detect", "No scan with metadata available.")
+            return
+        try:
+            cal = self._ensure_calibration(folder)
+        except Exception as exc:
+            QMessageBox.warning(self, "Detect", f"Calibration failed: {exc}")
+            return
+        from core.pipeline_cmds import detect_cmd
+        import sys as _sys
+        self._run_pipeline_process(
+            detect_cmd(folder, cal, python=_sys.executable, unbuffered=True),
+            "Detect")
+
+    def run_map(self):
+        folder = self.current_scan_folder
+        if not folder or not os.path.exists(os.path.join(folder, 'scan_metadata.json')):
+            QMessageBox.warning(self, "Map", "No scan with metadata available.")
+            return
+        from core.pipeline_cmds import map_cmd
+        import sys as _sys
+        self._run_pipeline_process(
+            map_cmd(folder, rotation_model=True, open_browser=True,
+                    python=_sys.executable, unbuffered=True),
+            "Map")
 
     def open_scan_folder(self):
         folder = self.current_scan_folder
