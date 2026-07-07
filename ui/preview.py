@@ -4,7 +4,7 @@ import collections
 import cv2
 import numpy as np
 import time
-from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar, QSizePolicy
+from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar, QSizePolicy, QSlider
 from PyQt5.QtCore import QTimer, Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QMouseEvent
 
@@ -70,10 +70,28 @@ class PreviewWindow(QWidget):
         lap_row.addWidget(self._lap_bar)
         lap_row.addWidget(self._lap_label)
 
+        # View-zoom slider: vertical, right of the image; 0=fit, 30=8×
+        # (ported from standa_stacker). Drives the software crop in update_frame.
+        self._display_zoom = 1.0
+        self._zoom_slider = QSlider(Qt.Vertical)
+        self._zoom_slider.setRange(0, 30)
+        self._zoom_slider.setValue(0)
+        self._zoom_slider.setFixedWidth(18)
+        self._zoom_slider.setInvertedAppearance(True)  # high zoom at top
+        self._zoom_slider.setToolTip("View zoom\n0 = fit\n10 = 2×\n20 = 4×\n30 = 8×")
+        self._zoom_slider.valueChanged.connect(
+            lambda v: setattr(self, '_display_zoom', 2.0 ** (v / 10.0)))
+
+        img_row = QHBoxLayout()
+        img_row.setContentsMargins(0, 0, 0, 0)
+        img_row.setSpacing(2)
+        img_row.addWidget(self.image_label)
+        img_row.addWidget(self._zoom_slider)
+
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(2)
-        layout.addWidget(self.image_label)
+        layout.addLayout(img_row)
         layout.addLayout(lap_row)
         self.setLayout(layout)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
@@ -81,8 +99,22 @@ class PreviewWindow(QWidget):
         self.measure_points = []
         self.show_crosshair = False
         self.show_full_crosshair = False
+        self.show_center_crosshair = True
         self.show_hud = False
         self.measure_mode = False
+        self.measure_area_mode = False
+        self.area_points = []
+        self.area_closed = False
+
+        # Top-left native-frame pixel shown at display (0,0) — the view-zoom
+        # crop origin. (0,0) when unzoomed. See _disp_to_frame/_frame_to_disp.
+        self.display_crop = (0, 0)
+
+        # Display-only brightness/contrast/gamma LUT (None = neutral, skipped).
+        self._ip_brightness = 0
+        self._ip_contrast   = 32
+        self._ip_gamma      = 100
+        self._ip_lut = None
         self._hud_cache = []
         self._hud_tick = 0
         self._mag_flash_text = None
@@ -118,8 +150,15 @@ class PreviewWindow(QWidget):
         controller.show_scale_bar_changed.connect(self.set_show_scale_bar)
         controller.color_changed.connect(self.set_color)
         controller.measure_mode_changed.connect(self.set_measure_mode)
+        controller.measure_area_mode_changed.connect(self.set_measure_area_mode)
         controller.crosshair_visible_changed.connect(self.set_crosshair_visible)
+        controller.center_crosshair_changed.connect(
+            lambda v: setattr(self, 'show_center_crosshair', v))
         controller.full_crosshair_changed.connect(self.set_full_crosshair)
+        controller.brightness_changed.connect(self._set_brightness)
+        controller.contrast_changed.connect(self._set_contrast)
+        controller.gamma_changed.connect(self._set_gamma)
+        controller.sharpness_changed.connect(lambda v: None)  # not implemented on the Alvium
         controller.hud_changed.connect(self.set_hud)
         controller.native_zoom_toggled.connect(self.set_native_zoom)
         controller.binning_changed.connect(self._on_binning_changed)
@@ -376,6 +415,75 @@ class PreviewWindow(QWidget):
         self._info_wb_blue = ratio
         self._hud_cache = []
 
+    # ── Display-only brightness/contrast/gamma LUT (ported from standa) ────
+
+    def _set_brightness(self, value: int):
+        self._ip_brightness = int(value)
+        self._rebuild_ip_lut()
+
+    def _set_contrast(self, value: int):
+        self._ip_contrast = int(value)
+        self._rebuild_ip_lut()
+
+    def _set_gamma(self, value: int):
+        self._ip_gamma = int(value)
+        self._rebuild_ip_lut()
+
+    def _rebuild_ip_lut(self):
+        b = self._ip_brightness         # additive offset, -64 … +64
+        c = self._ip_contrast / 32.0    # multiplier; 1.0 = neutral
+        g = self._ip_gamma / 100.0      # actual γ; 1.0 = neutral
+        if b == 0 and abs(c - 1.0) < 0.01 and abs(g - 1.0) < 0.01:
+            self._ip_lut = None         # all at defaults → skip LUT
+            return
+        x = np.arange(256, dtype=np.float32) / 255.0
+        # gamma → contrast (around midpoint) → brightness
+        y = np.power(np.clip(x, 1e-6, 1.0), g)
+        y = (y - 0.5) * c + 0.5
+        corrected = y * 255.0 + b
+        self._ip_lut = np.clip(corrected, 0, 255).astype(np.uint8)
+
+    def set_measure_area_mode(self, mode):
+        self.measure_area_mode = mode
+        if not mode:
+            self.area_points.clear()
+            self.area_closed = False
+
+    def get_camera_info(self):
+        """Return current camera state dict for controls.py display, or None."""
+        cap = self.cap
+        if cap is None or not cap.connected():
+            return None
+        try:
+            info = {
+                'exposure_ms':   cap.get_exposure_us() / 1000.0,
+                'gain_db':       cap.get_gain_db(),
+                'auto_exposure': self._info_auto_exp,
+                'width':         self.native_width,
+                'height':        self.native_height,
+            }
+            if hasattr(cap, 'get_balance_ratio'):
+                info['balance_red']  = cap.get_balance_ratio('Red')
+                info['balance_blue'] = cap.get_balance_ratio('Blue')
+            return info
+        except Exception:
+            return None
+
+    # ── Display↔frame coordinate mapping (zoom/crop aware) ─────────────────
+
+    def _disp_to_frame(self, dx, dy):
+        """Convert display pixel coords → native frame pixel coords."""
+        ox, oy = self.display_offset
+        sx, sy = self.display_scale
+        cx, cy = self.display_crop
+        return (dx - ox) * sx + cx, (dy - oy) * sy + cy
+
+    def _frame_to_disp(self, fx, fy):
+        ox, oy = self.display_offset
+        sx, sy = self.display_scale
+        cx, cy = self.display_crop
+        return (fx - cx) / sx + ox, (fy - cy) / sy + oy
+
     def start_color_pick(self):
         """Activate eyedropper: next click samples the colour at that position."""
         self._pick_mode = True
@@ -387,10 +495,9 @@ class PreviewWindow(QWidget):
             self.image_label.setCursor(Qt.ArrowCursor)
             if self._last_raw_frame is not None:
                 x, y = event.pos().x(), event.pos().y()
-                ox, oy = self.display_offset
-                sx, sy = self.display_scale
-                fx = int(max(0, min((x - ox) * sx, self._last_raw_frame.shape[1] - 1)))
-                fy = int(max(0, min((y - oy) * sy, self._last_raw_frame.shape[0] - 1)))
+                fxf, fyf = self._disp_to_frame(x, y)
+                fx = int(max(0, min(fxf, self._last_raw_frame.shape[1] - 1)))
+                fy = int(max(0, min(fyf, self._last_raw_frame.shape[0] - 1)))
                 # Average a 5×5 neighbourhood for noise robustness
                 h, w = self._last_raw_frame.shape[:2]
                 x1, x2 = max(0, fx - 2), min(w, fx + 3)
@@ -399,18 +506,41 @@ class PreviewWindow(QWidget):
                 b, g, r = [int(v) for v in patch.reshape(-1, 3).mean(axis=0)]
                 self.color_sampled.emit(r, g, b)
             return
-        if not self.measure_mode:
-            return
+
         x, y = event.pos().x(), event.pos().y()
         ox, oy = self.display_offset
-        sx, sy = self.display_scale
-        if not (ox <= x <= self.image_label.width() - ox and oy <= y <= self.image_label.height() - oy):
+        in_bounds = (ox <= x <= self.image_label.width() - ox
+                     and oy <= y <= self.image_label.height() - oy)
+
+        if self.measure_mode and event.button() == Qt.LeftButton:
+            if not in_bounds:
+                return
+            cx, cy = self._disp_to_frame(x, y)
+            if len(self.measure_points) < 2:
+                self.measure_points.append((cx, cy))
+            else:
+                self.measure_points.clear()
             return
-        cx, cy = (x - ox) * sx, (y - oy) * sy
-        if len(self.measure_points) < 2:
-            self.measure_points.append((cx, cy))
-        else:
-            self.measure_points.clear()
+
+        if self.measure_area_mode:
+            if not in_bounds:
+                return
+            if event.button() == Qt.RightButton:
+                # Right-click: close polygon (if ≥3 pts) or clear if already closed
+                if self.area_closed:
+                    self.area_points.clear()
+                    self.area_closed = False
+                elif len(self.area_points) >= 3:
+                    self.area_closed = True
+                return
+            if event.button() == Qt.LeftButton:
+                if self.area_closed:
+                    # Start fresh on first click after closing
+                    self.area_points.clear()
+                    self.area_closed = False
+                cx, cy = self._disp_to_frame(x, y)
+                self.area_points.append((cx, cy))
+            return
 
     def handle_double_click(self, event: QMouseEvent):
         """Move stage so the double-clicked feature is centred in the frame."""
@@ -425,9 +555,10 @@ class PreviewWindow(QWidget):
         if not (ox <= px < lw - ox and oy <= py < lh - oy):
             return
 
-        # Offset from frame centre in native pixels
-        dpx = (px - ox) * sx - self.native_width  / 2.0
-        dpy = (py - oy) * sy - self.native_height / 2.0
+        # Offset from frame centre in native pixels (zoom/crop aware)
+        fx, fy = self._disp_to_frame(px, py)
+        dpx = fx - self.native_width  / 2.0
+        dpy = fy - self.native_height / 2.0
 
         result = self.get_scale_bar_pixels(self.magnification)
         if result is None:
@@ -484,25 +615,48 @@ class PreviewWindow(QWidget):
         if self.flat_field_panel is not None:
             frame = self.flat_field_panel.apply_correction(frame)
 
-        if self.native_zoom:
+        # Display-only brightness/contrast/gamma LUT. _last_raw_frame (and hence
+        # Capture Frame / eyedropper / autofocus) stays unprocessed.
+        disp_src = cv2.LUT(frame, self._ip_lut) if self._ip_lut is not None else frame
+
+        cx0 = cy0 = 0
+        if self.native_zoom and orig_w <= lw and orig_h <= lh:
             new_w, new_h = orig_w, orig_h
             ox, oy, sx, sy = 0, 0, 1, 1
-            display = frame.copy()
+            display = disp_src.copy()
+        elif self.native_zoom:
+            # Centre crop: a label-sized window of native pixels from the frame centre
+            cx0 = (orig_w - lw) // 2
+            cy0 = (orig_h - lh) // 2
+            display = disp_src[cy0:cy0 + lh, cx0:cx0 + lw].copy()
+            ox, oy, sx, sy = 0, 0, 1, 1
         else:
-            aspect = orig_w / orig_h
+            # Software view zoom (slider): crop around the frame centre, then fit.
+            z = self._display_zoom
+            if z > 1.0:
+                crop_w = max(1, int(orig_w / z))
+                crop_h = max(1, int(orig_h / z))
+                cx0 = max(0, (orig_w - crop_w) // 2)
+                cy0 = max(0, (orig_h - crop_h) // 2)
+                src = disp_src[cy0:cy0 + crop_h, cx0:cx0 + crop_w]
+            else:
+                src = disp_src
+            aspect = src.shape[1] / src.shape[0]
             if lw / lh > aspect:
                 new_h, new_w = lh, int(lh * aspect)
             else:
                 new_w, new_h = lw, int(lw / aspect)
-            display = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_AREA)
+            interp = cv2.INTER_LINEAR if z > 1.0 else cv2.INTER_AREA
+            display = cv2.resize(src, (new_w, new_h), interpolation=interp)
             ox, oy = (lw - new_w)//2, (lh - new_h)//2
-            sx, sy = orig_w / new_w, orig_h / new_h
+            sx, sy = src.shape[1] / new_w, src.shape[0] / new_h
             canvas = np.zeros((lh, lw, 3), dtype=np.uint8)
             canvas[oy:oy+new_h, ox:ox+new_w] = display
             display = canvas
 
         self.display_offset = (ox, oy)
         self.display_scale = (sx, sy)
+        self.display_crop = (cx0, cy0)
         self._last_raw_frame = frame
 
         if self.layer_panel is not None:
@@ -538,7 +692,7 @@ class PreviewWindow(QWidget):
             sb = self.get_scale_bar_pixels(self.magnification)
             _ppm = sb[2] if sb else None
             self._draw_full_crosshair(draw, disp_w, disp_h, _ppm, sx)
-        else:
+        elif self.show_center_crosshair:
             cv2.drawMarker(draw, (cx_disp, cy_disp), (0, 255, 0),
                            markerType=cv2.MARKER_CROSS, markerSize=20, thickness=1)
 
@@ -558,19 +712,23 @@ class PreviewWindow(QWidget):
 
 
         for pt in self.measure_points:
-            dx = int(pt[0]/sx + ox)
-            dy = int(pt[1]/sy + oy)
+            dx, dy = (int(v) for v in self._frame_to_disp(*pt))
             cv2.drawMarker(draw, (dx, dy), (0,255,255), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=1)
+
+        if len(self.measure_points) == 1:
+            # Live rubber-band line from placed point to current cursor
+            p1_disp = tuple(int(v) for v in self._frame_to_disp(*self.measure_points[0]))
+            mx, my = self.last_mouse_pos.x(), self.last_mouse_pos.y()
+            cv2.line(draw, p1_disp, (mx, my), (0, 255, 255), 1)
 
         if len(self.measure_points) == 2:
             p1, p2 = self.measure_points
             dx_n = p2[0] - p1[0]
             dy_n = p2[1] - p1[1]
             dist_px = (dx_n**2 + dy_n**2)**0.5
-            mid_x = int((p1[0]+p2[0])/(2*sx) + ox)
-            mid_y = int((p1[1]+p2[1])/(2*sy) + oy)
-            pt1_disp = (int(p1[0]/sx + ox), int(p1[1]/sy + oy))
-            pt2_disp = (int(p2[0]/sx + ox), int(p2[1]/sy + oy))
+            mid_x, mid_y = (int(v) for v in self._frame_to_disp((p1[0]+p2[0])/2, (p1[1]+p2[1])/2))
+            pt1_disp = tuple(int(v) for v in self._frame_to_disp(*p1))
+            pt2_disp = tuple(int(v) for v in self._frame_to_disp(*p2))
             cv2.line(draw, pt1_disp, pt2_disp, (0,255,255), 1)
             angle = np.degrees(np.arctan2(dy_n, dx_n))
             # ±1 px positional error → angle uncertainty via error propagation
@@ -586,18 +744,56 @@ class PreviewWindow(QWidget):
             cv2.putText(draw, dist_label, (mid_x, mid_y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
             cv2.putText(draw, f"{angle:.2f} +/- {angle_err:.2f} deg", (mid_x, mid_y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
 
+        # --- Measure Area (polygon, shoelace area in px² and µm²) ---
+        if self.measure_area_mode and self.area_points:
+            disp_pts = [tuple(int(v) for v in self._frame_to_disp(*pt)) for pt in self.area_points]
+
+            for dp in disp_pts:
+                cv2.drawMarker(draw, dp, (0, 255, 128), markerType=cv2.MARKER_CROSS, markerSize=10, thickness=1)
+            for i in range(len(disp_pts) - 1):
+                cv2.line(draw, disp_pts[i], disp_pts[i+1], (0, 255, 128), 1)
+
+            if self.area_closed and len(disp_pts) >= 3:
+                cv2.line(draw, disp_pts[-1], disp_pts[0], (0, 255, 128), 1)
+                # Shoelace area in native pixel coords
+                pts_n = self.area_points
+                n = len(pts_n)
+                area_px2 = abs(sum(
+                    pts_n[i][0] * pts_n[(i+1) % n][1] - pts_n[(i+1) % n][0] * pts_n[i][1]
+                    for i in range(n)
+                )) / 2.0
+                cx_d = sum(dp[0] for dp in disp_pts) // n
+                cy_d = sum(dp[1] for dp in disp_pts) // n
+                sb_area = self.get_scale_bar_pixels(self.magnification)
+                if sb_area is not None:
+                    _, _, ppm_a = sb_area
+                    area_um2 = area_px2 / (ppm_a ** 2)
+                    area_label = f"{area_px2:.0f} px2 / {area_um2:.2f} um2"
+                else:
+                    area_label = f"{area_px2:.0f} px2"
+                cv2.putText(draw, area_label, (cx_d, cy_d - 10),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+                cv2.putText(draw, "Right-click to clear", (cx_d, cy_d + 12),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (180, 180, 180), 1)
+            else:
+                # Live rubber-band line from last placed point to cursor
+                mx, my = self.last_mouse_pos.x(), self.last_mouse_pos.y()
+                cv2.line(draw, disp_pts[-1], (mx, my), (0, 255, 128), 1)
+
         self.last_output_frame = draw.copy()
         rgb = cv2.cvtColor(draw, cv2.COLOR_BGR2RGB)
         qimg = QImage(rgb.data, draw.shape[1], draw.shape[0], 3*draw.shape[1], QImage.Format_RGB888)
         self.image_label.setPixmap(QPixmap.fromImage(qimg))
 
         center_x, center_y = orig_w//2, orig_h//2
-        if self.zoom_under_cursor or (self.measure_mode and len(self.measure_points) < 2):
+        if (self.zoom_under_cursor
+                or (self.measure_mode and len(self.measure_points) < 2)
+                or (self.measure_area_mode and not self.area_closed)):
             mx, my = self.last_mouse_pos.x(), self.last_mouse_pos.y()
             try:
-                center_x = int((mx - ox) * sx)
-                center_y = int((my - oy) * sy)
-            except:
+                fx, fy = self._disp_to_frame(mx, my)
+                center_x, center_y = int(fx), int(fy)
+            except Exception:
                 pass
         self._zoom_center_frame = (center_x, center_y)
         zs = 20

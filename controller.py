@@ -11,8 +11,14 @@ class Controller(QObject):
     show_scale_bar_changed = pyqtSignal(bool)
     color_changed = pyqtSignal(str)
     measure_mode_changed = pyqtSignal(bool)
+    measure_area_mode_changed = pyqtSignal(bool)
     crosshair_visible_changed = pyqtSignal(bool)
+    center_crosshair_changed = pyqtSignal(bool)
     full_crosshair_changed = pyqtSignal(bool)
+    brightness_changed = pyqtSignal(int)    # display LUT: additive offset -64..64
+    contrast_changed = pyqtSignal(int)      # display LUT: /32 multiplier, 32 = neutral
+    gamma_changed = pyqtSignal(int)         # display LUT: /100 gamma, 100 = neutral
+    sharpness_changed = pyqtSignal(int)     # reserved — not implemented on the Alvium
     hud_changed = pyqtSignal(bool)
     resolution_changed = pyqtSignal(tuple)
     native_zoom_toggled = pyqtSignal(bool)
