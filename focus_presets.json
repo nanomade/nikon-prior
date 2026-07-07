@@ -1,11 +1,11 @@
 {
-  "_comment": "Exposure defaults in microseconds per objective, at 1x full resolution (this rig always runs 1x) under tungsten illumination. 5x=40ms and 20x=45ms MEASURED 2026-07-07 (nearly flat \u2014 per-objective NA compensates for magnification); 10x interpolated between them; 50x/100x scaled from the 20x measurement by the old inter-mag ratios \u2014 trim these when measured (edits apply live on mag change). wb: manual Red/Blue BalanceRatio defaults for the tungsten illuminator, tuned 2026-07-07.",
+  "_comment": "Exposure defaults in microseconds per objective, at 1x full resolution (this rig always runs 1x) under tungsten illumination. 5x=40ms, 20x=45ms, 50x=45ms, 100x=120ms MEASURED 2026-07-07 (nearly flat through 50x — per-objective NA compensates for magnification); 10x interpolated between its measured neighbours. Edits apply live on mag change. wb: manual Red/Blue BalanceRatio defaults for the tungsten illuminator, tuned 2026-07-07.",
   "exposure_defaults": {
     "5x": 40000,
     "10x": 42000,
     "20x": 45000,
-    "50x": 100000,
-    "100x": 210000
+    "50x": 45000,
+    "100x": 120000
   },
   "wb": {
     "red": 1.5,
