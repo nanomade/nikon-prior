@@ -110,6 +110,8 @@ class Application:
         self.controller.magnification_changed.connect(
             self.autofocus_panel.apply_defaults_for_mag
         )
+        # Enter key over the preview runs autofocus (preview.keyPressEvent)
+        self.preview.autofocus_panel = self.autofocus_panel
 
         self.focus_map_panel = FocusMapPanel(
             motor_manager=mm,
@@ -122,6 +124,7 @@ class Application:
             self.preview, mm, self.stage_controls,
             autofocus_panel=self.autofocus_panel,
             focus_map_panel=self.focus_map_panel,
+            controls=self.controls,
         )
         self.focus_map_panel.wafer_mapping_panel = self.wafer_mapping_panel
 

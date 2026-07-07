@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 import time
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QProgressBar, QSizePolicy, QSlider
-from PyQt5.QtCore import QTimer, Qt, QPoint, pyqtSignal
+from PyQt5.QtCore import QTimer, Qt, QPoint, QEvent, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QMouseEvent
 
 from camera_manager import create_camera_manager
@@ -37,10 +37,18 @@ class PreviewWindow(QWidget):
         self.image_label.mousePressEvent = self.handle_click
         self.image_label.mouseDoubleClickEvent = self.handle_double_click
         self.image_label.mouseMoveEvent = self.track_mouse
+        self.image_label.wheelEvent = self.handle_wheel
+
+        # Keyboard navigation is active only while the cursor is over the
+        # preview (eventFilter tracks Enter/Leave and grabs focus).
+        self.setFocusPolicy(Qt.StrongFocus)
+        self._cursor_over_preview = False
+        self.image_label.installEventFilter(self)
 
         self.motor_manager = None    # injected by stagecontrol after construction
         self.stage_controls = None   # injected by stagecontrol after construction
         self.manip_controls = None   # injected by stagecontrol after construction
+        self.autofocus_panel = None  # injected by main.py (Enter-key autofocus)
         self.layer_panel      = None    # injected by LayerContrastPanel on construction
         self.mark_panel       = None    # injected by IndexMarkPanel on construction
         self.flat_field_panel = None    # injected by FlatFieldPanel on construction
@@ -173,6 +181,110 @@ class PreviewWindow(QWidget):
 
     def track_mouse(self, event: QMouseEvent):
         self.last_mouse_pos = event.pos()
+
+    # Wheel Z-focus step per click, in µm, scaled to depth of field at each mag.
+    # 100x (~0.6 µm) is the reference; lower mags step proportionally more so the
+    # focus change per click stays perceptible. Shift = fine (1 µm).
+    _WHEEL_Z_UM = {"5x": 10.0, "10x": 5.0, "20x": 2.0, "50x": 1.0, "100x": 0.6}
+
+    def handle_wheel(self, event):
+        """Mouse wheel on the preview: jog Z focus, step proportional to magnification."""
+        if self.stage_controls is None:
+            return
+        delta = event.angleDelta().y()
+        if delta == 0:
+            return
+        mag = getattr(self, "magnification", "10x") or "10x"
+        if event.modifiers() & Qt.ShiftModifier:
+            step_um = 1.0   # fine
+        else:
+            step_um = self._WHEEL_Z_UM.get(mag, 1.0)
+        direction = 1 if delta > 0 else -1
+        self.stage_controls.jog_axis("Z", direction * step_um)
+
+    def eventFilter(self, obj, event):
+        if obj is self.image_label:
+            if event.type() == QEvent.Enter:
+                self._cursor_over_preview = True
+                self.setFocus()
+            elif event.type() == QEvent.Leave:
+                self._cursor_over_preview = False
+        return super().eventFilter(obj, event)
+
+    def keyPressEvent(self, event):
+        """Keyboard navigation — active only while the cursor is over the preview.
+
+        Arrows: pan the stage by 90% of the FOV.  Numpad 1–9: XY jog (10% FOV;
+        Shift = 1% precision, Ctrl = 50% turbo).  Numpad +/−: Z jog (5 µm;
+        Shift = 50 µm).  Enter: run autofocus.
+        """
+        if not self._cursor_over_preview:
+            super().keyPressEvent(event)
+            return
+
+        key  = event.key()
+        mods = event.modifiers()
+        shift = bool(mods & Qt.ShiftModifier)
+        ctrl  = bool(mods & Qt.ControlModifier)
+        mag   = getattr(self, "magnification", "10x") or "10x"
+
+        sc = self.stage_controls
+        mm = self.motor_manager
+
+        sb = self.get_scale_bar_pixels(mag)
+        ppm = sb[2] if sb else None
+        fov_x_mm = self.native_width  / ppm / 1000.0 if ppm else None
+        fov_y_mm = self.native_height / ppm / 1000.0 if ppm else None
+
+        # ── Arrow keys: pan by 90 % of FOV ──────────────────────────────────
+        if key in (Qt.Key_Left, Qt.Key_Right, Qt.Key_Up, Qt.Key_Down):
+            if mm is None or fov_x_mm is None:
+                return
+            dx = dy = 0.0
+            if key == Qt.Key_Right: dx = +fov_x_mm * 0.9
+            if key == Qt.Key_Left:  dx = -fov_x_mm * 0.9
+            if key == Qt.Key_Up:    dy = +fov_y_mm * 0.9
+            if key == Qt.Key_Down:  dy = -fov_y_mm * 0.9
+            mm.move_relative_xy_units(dx, dy, wait=False)
+            if sc is not None:
+                sc._last_cmd_time = time.time()
+                sc._sync_sliders_to_motors()
+            return
+
+        # ── Numpad 1–9: stage XY jog, FOV-proportional ──────────────────────
+        # numpad-6 pans right (stage +X), numpad-8 pans up (+Y).
+        if (mods & Qt.KeypadModifier) and fov_x_mm is not None:
+            frac = 0.01 if shift else (0.5 if ctrl else 0.1)
+            jx = fov_x_mm * frac * 1000.0   # µm
+            jy = fov_y_mm * frac * 1000.0
+            numpad_xy = {
+                Qt.Key_6: (+jx, 0), Qt.Key_4: (-jx, 0),
+                Qt.Key_8: (0, +jy), Qt.Key_2: (0, -jy),
+                Qt.Key_9: (+jx, +jy), Qt.Key_7: (-jx, +jy),
+                Qt.Key_3: (+jx, -jy), Qt.Key_1: (-jx, -jy),
+            }
+            if key in numpad_xy and sc is not None:
+                dx_um, dy_um = numpad_xy[key]
+                if dx_um: sc.jog_axis("X", int(round(dx_um)))
+                if dy_um: sc.jog_axis("Y", int(round(dy_um)))
+                return
+
+        # ── Numpad + / -: Z focus ────────────────────────────────────────────
+        if (mods & Qt.KeypadModifier) and key in (Qt.Key_Plus, Qt.Key_Minus):
+            if sc is None:
+                return
+            step_um = 50.0 if shift else 5.0
+            sc.jog_axis("Z", +step_um if key == Qt.Key_Plus else -step_um)
+            return
+
+        # ── Enter / Return: quick autofocus ──────────────────────────────────
+        if key in (Qt.Key_Return, Qt.Key_Enter):
+            af = self.autofocus_panel
+            if af is not None:
+                af._start()
+            return
+
+        super().keyPressEvent(event)
         
     def get_frame(self):
         """

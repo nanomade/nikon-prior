@@ -6,7 +6,7 @@ from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit, QSlider,
     QComboBox, QCheckBox, QPushButton, QSpinBox, QStyle, QStyleOptionSlider,
 )
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, QEvent, QObject
 from PyQt5.QtGui import QColor, QPainter, QPen
 
 _PRESETS_FILE    = "focus_presets.json"
@@ -25,6 +25,21 @@ def _pos_from_exp(exp_us):
     """Exposure in µs → log-scale slider position (0–1000)."""
     ratio = math.log(_EXP_MAX_US / _EXP_MIN_US)
     return round(math.log(max(_EXP_MIN_US, exp_us) / _EXP_MIN_US) / ratio * 1000)
+
+
+class _WheelGuard(QObject):
+    """Swallow wheel events on value widgets unless they have keyboard focus.
+
+    Scrolling over the panel must never silently drag exposure/gain/WB/binning
+    — the operator is navigating, not editing. Click a widget first to make
+    the wheel adjust it deliberately.
+    """
+
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Wheel and not obj.hasFocus():
+            event.ignore()
+            return True   # consume: don't change the value, don't scroll-adjust
+        return super().eventFilter(obj, event)
 
 
 class _DetentSlider(QSlider):
@@ -419,6 +434,13 @@ class ControlWindow(QWidget):
         layout.addWidget(self._histogram)
 
         self.setLayout(layout)
+
+        # Guard every value widget against accidental scroll-wheel edits:
+        # wheel only adjusts a widget that was clicked (has focus) first.
+        self._wheel_guard = _WheelGuard(self)
+        for w in self.findChildren((QSlider, QSpinBox, QComboBox)):
+            w.setFocusPolicy(Qt.StrongFocus)
+            w.installEventFilter(self._wheel_guard)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_status)
