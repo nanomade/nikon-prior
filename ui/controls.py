@@ -4,8 +4,8 @@ import datetime
 import json
 import math
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QGridLayout, QLabel, QLineEdit, QSlider, QComboBox,
-    QCheckBox, QPushButton, QFileDialog, QSpinBox,
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QLineEdit, QSlider,
+    QComboBox, QCheckBox, QPushButton, QFileDialog, QSpinBox,
 )
 from PyQt5.QtCore import Qt, QTimer
 
@@ -71,23 +71,40 @@ class ControlWindow(QWidget):
         grid.addWidget(self._exp_slider, 0, 1)
         grid.addWidget(self._exp_text, 0, 2)
 
-        # --- Gain ---
-        _, self._gain_slider = self.add_slider(grid, "Gain", 0, 100, 0, 1, controller.gain_changed)
+        # --- Gain (0–48 dB, the Alvium's range) ---
+        _, self._gain_slider = self.add_slider(grid, "Gain", 0, 48, 0, 1, controller.gain_changed)
 
-        # --- White Balance Temperature ---
-        grid.addWidget(QLabel("WB Temp (K):"), 2, 0)
-        self._wb_slider = QSlider(Qt.Horizontal)
-        self._wb_slider.setRange(2800, 7500)
-        self._wb_slider.setValue(5300)
-        self._wb_slider.setTickInterval(100)
-        wb_label = QLabel("5300 K")
-        wb_label.setFixedWidth(55)
-        def _on_wb(v):
-            wb_label.setText(f"{v} K")
-            controller.wb_temperature_changed.emit(v)
-        self._wb_slider.valueChanged.connect(_on_wb)
-        grid.addWidget(self._wb_slider, 2, 1)
-        grid.addWidget(wb_label, 2, 2)
+        # --- White Balance (manual Red/Blue gains + one-shot auto) ---
+        grid.addWidget(QLabel("White Bal:"), 2, 0)
+        wb_row = QHBoxLayout()
+
+        wb_row.addWidget(QLabel("R"))
+        self._wb_red_slider = QSlider(Qt.Horizontal)
+        self._wb_red_slider.setRange(5, 160)      # value/20 → 0.25–8.00
+        self._wb_red_slider.setValue(20)          # 1.00
+        self._wb_red_text = QLabel("1.00")
+        self._wb_red_text.setFixedWidth(34)
+        def _on_wb_red(v):
+            self._wb_red_text.setText(f"{v / 20:.2f}")
+            controller.wb_red_changed.emit(v / 20.0)
+        self._wb_red_slider.valueChanged.connect(_on_wb_red)
+        wb_row.addWidget(self._wb_red_slider)
+        wb_row.addWidget(self._wb_red_text)
+
+        wb_row.addWidget(QLabel("B"))
+        self._wb_blue_slider = QSlider(Qt.Horizontal)
+        self._wb_blue_slider.setRange(5, 160)
+        self._wb_blue_slider.setValue(20)
+        self._wb_blue_text = QLabel("1.00")
+        self._wb_blue_text.setFixedWidth(34)
+        def _on_wb_blue(v):
+            self._wb_blue_text.setText(f"{v / 20:.2f}")
+            controller.wb_blue_changed.emit(v / 20.0)
+        self._wb_blue_slider.valueChanged.connect(_on_wb_blue)
+        wb_row.addWidget(self._wb_blue_slider)
+        wb_row.addWidget(self._wb_blue_text)
+
+        grid.addLayout(wb_row, 2, 1, 1, 2)
 
         # --- Auto Exposure ---
         self._auto_exp_check = auto_exp_check = QCheckBox("Auto Exposure")
@@ -184,11 +201,11 @@ class ControlWindow(QWidget):
         grid.addWidget(QLabel("Binning:"), 14, 0)
         self._binning_selector = binning_selector = QComboBox()
         binning_selector.addItems(["1x (full)", "2x", "4x"])
-        # Connect before setCurrentText so the initial "4x" selection fires the signal
+        # Connect before setCurrentText so the initial selection fires the signal
         binning_selector.currentTextChanged.connect(
             lambda t: controller.binning_changed.emit(int(t.split("x")[0]))
         )
-        binning_selector.setCurrentText("4x")
+        binning_selector.setCurrentText("1x (full)")
         grid.addWidget(binning_selector, 14, 1, 1, 2)
 
         native_zoom_check = QCheckBox("Native Zoom (1:1)")
@@ -310,8 +327,10 @@ class ControlWindow(QWidget):
 
         if "gain" in s:
             self._gain_slider.setValue(int(s["gain"]))
-        if "wb_kelvin" in s:
-            self._wb_slider.setValue(int(s["wb_kelvin"]))
+        if "wb_red" in s:
+            self._wb_red_slider.setValue(max(5, min(160, round(float(s["wb_red"]) * 20))))
+        if "wb_blue" in s:
+            self._wb_blue_slider.setValue(max(5, min(160, round(float(s["wb_blue"]) * 20))))
         if "auto_exposure" in s:
             self._auto_exp_check.setChecked(bool(s["auto_exposure"]))
         if "binning" in s:
@@ -324,7 +343,8 @@ class ControlWindow(QWidget):
             s = {
                 "exposure_us":     _exp_from_pos(self._exp_slider.value()),
                 "gain":            self._gain_slider.value(),
-                "wb_kelvin":       self._wb_slider.value(),
+                "wb_red":          self._wb_red_slider.value() / 20.0,
+                "wb_blue":         self._wb_blue_slider.value() / 20.0,
                 "auto_exposure":   self._auto_exp_check.isChecked(),
                 "magnification":   self._mag_selector.currentText(),
                 "mag_exp_preset":  self._mag_exp_check.isChecked(),

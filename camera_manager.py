@@ -40,7 +40,7 @@ SENSOR_WIDTH  = 2464
 SENSOR_HEIGHT = 2056
 
 # Default live-feed reduction factor
-DEFAULT_LIVE_FACTOR = 4   # 4× → 616×514
+DEFAULT_LIVE_FACTOR = 1   # 1× → full resolution 2464×2056 (max detail)
 
 try:
     import vmbpy
@@ -155,12 +155,9 @@ class AlviumCameraManager:
 
         cam.get_feature_by_name("TriggerMode").set("Off")
 
-        # Request Rgb8: camera ISP handles demosaicing (no Bayer edge artefacts).
-        # Fall back to BayerRG8 if Rgb8 is not available.
-        try:
-            cam.get_feature_by_name("PixelFormat").set("Rgb8")
-        except Exception:
-            cam.get_feature_by_name("PixelFormat").set("BayerRG8")
+        # This Alvium has no Rgb8 format, so stream 8-bit Bayer and demosaic in
+        # software (_debayer). Requesting Rgb8 only produced a startup error.
+        cam.get_feature_by_name("PixelFormat").set("BayerRG8")
 
         self._apply_live_resolution(cam, self._live_factor)
 
@@ -196,14 +193,13 @@ class AlviumCameraManager:
 
         self._stop_streaming()
 
-        # Reset decimation and binning to full resolution; clear any ROI offset first.
+        # Reset binning to full resolution; clear any ROI offset first.
         for feat in ("OffsetX", "OffsetY"):
             try:
                 cam.get_feature_by_name(feat).set(0)
             except Exception:
                 pass
-        for feat in ("DecimationHorizontal", "DecimationVertical",
-                     "BinningHorizontal",   "BinningVertical"):
+        for feat in ("BinningHorizontal", "BinningVertical"):
             try:
                 cam.get_feature_by_name(feat).set(1)
             except Exception:
@@ -252,7 +248,9 @@ class AlviumCameraManager:
 
             def _get(name):
                 try:
-                    return cam.get_feature_by_name(name).get()
+                    val = cam.get_feature_by_name(name).get()
+                    # Enum features return EnumEntry objects — not JSON serializable
+                    return val if isinstance(val, (int, float, str, bool)) else str(val)
                 except Exception as e:
                     return f'<unavailable: {e}>'
 
@@ -286,141 +284,55 @@ class AlviumCameraManager:
             self._streaming = False
 
     def _apply_live_resolution(self, cam, factor: int):
-        """Try decimation then binning; centre ROI if camera uses a sensor crop.
+        """Reduce live resolution with real hardware binning.
 
-        Some cameras (including the Alvium) implement BinningHorizontal as a
-        top-left sensor crop rather than true pixel averaging.  Explicitly
-        setting OffsetX/Y to (SENSOR-target)//2 centres the field of view so
-        the optical axis stays at the image crosshair.
-
-        Sets self.live_is_true_binning = True for all exit paths (because software
-        scaling is applied as a fallback so the full sensor FOV is always covered).
-        Sets self._software_scale to the factor when hardware full-FOV binning is
-        unavailable — the frame callback then downscales in software so every
-        binning level shows the same physical field of view.
+        Sets BinningHorizontal/Vertical to `factor` (1/2/4).  On the Alvium the
+        binning modes pool charge across binned pixels — the full sensor field of
+        view is preserved and each output pixel is correspondingly brighter, so no
+        software downscale, decimation or ROI trickery is needed.  (The previous
+        decimation-first / ROI-probe workaround defeated binning entirely on this
+        model, forcing full-resolution capture and very long exposures.)
         """
-        target_w = SENSOR_WIDTH  // factor
-        target_h = SENSOR_HEIGHT // factor
+        self._software_scale = 1
 
-        if factor == 1:
-            # Reset offsets first; then binning — order matters on some cameras
-            # because changing OffsetX on a reduced-width image can go out of range.
-            for feat in ("OffsetX", "OffsetY"):
-                try:
-                    cam.get_feature_by_name(feat).set(0)
-                except Exception:
-                    pass
-            for feat in ("DecimationHorizontal", "DecimationVertical",
-                         "BinningHorizontal",   "BinningVertical"):
+        # Clear any leftover ROI offset before (re)binning. (This Alvium model has
+        # no Decimation feature, so there is nothing to reset there.)
+        for feat in ("OffsetX", "OffsetY"):
+            try:
+                cam.get_feature_by_name(feat).set(0)
+            except Exception:
+                pass
+
+        try:
+            cam.get_feature_by_name("BinningHorizontal").set(factor)
+            cam.get_feature_by_name("BinningVertical").set(factor)
+        except Exception as exc:
+            logger.warning("Binning %dx not supported (%s) — staying at full resolution", factor, exc)
+            factor = 1
+            for feat in ("BinningHorizontal", "BinningVertical"):
                 try:
                     cam.get_feature_by_name(feat).set(1)
                 except Exception:
                     pass
-            # Explicitly restore full sensor dimensions — some cameras (Alvium) keep
-            # Width/Height at the last binned value rather than auto-expanding.
-            for feat, val in (("Width", SENSOR_WIDTH), ("Height", SENSOR_HEIGHT)):
-                try:
-                    cam.get_feature_by_name(feat).set(val)
-                except Exception:
-                    pass
-            self._software_scale   = 1
-            self.native_width      = SENSOR_WIDTH
-            self.native_height     = SENSOR_HEIGHT
-            self.live_is_true_binning = True
-            logger.info("Live mode: full resolution (no binning)")
-            return
 
-        # Try hardware decimation first (true subsampling — full FOV preserved).
-        try:
-            cam.get_feature_by_name("DecimationHorizontal").set(factor)
-            cam.get_feature_by_name("DecimationVertical").set(factor)
-            self._software_scale   = 1
-            self.native_width      = target_w
-            self.native_height     = target_h
-            self.live_is_true_binning = True
-            logger.info("Decimation %dx applied for live preview", factor)
-            return
-        except Exception:
-            logger.warning("Decimation %dx not supported, trying hardware binning", factor)
-
-        # Try hardware binning.  Some cameras (Alvium) implement BinningHorizontal
-        # as a sensor ROI crop rather than true full-sensor pixel averaging.
-        # We detect this by attempting to move OffsetX away from zero: if the
-        # camera accepts the change it is doing ROI; if not, it is true binning.
-        try:
-            for feat, val in (("BinningHorizontalMode", "Average"),
-                               ("BinningVerticalMode",   "Average")):
-                try:
-                    cam.get_feature_by_name(feat).set(val)
-                except Exception:
-                    pass
-            cam.get_feature_by_name("BinningHorizontal").set(factor)
-            cam.get_feature_by_name("BinningVertical").set(factor)
-
-            # Test for ROI: try writing a non-zero OffsetX and read it back.
-            probe_ox = (SENSOR_WIDTH - target_w) // 2
-            is_roi = False
+        # After binning the Width/Height maxima shrink — set each to its new
+        # maximum so the frame covers the whole (binned) sensor.
+        for feat in ("Width", "Height"):
             try:
-                cam.get_feature_by_name("OffsetX").set(probe_ox)
-                actual_ox = cam.get_feature_by_name("OffsetX").get()
-                if actual_ox != 0:
-                    is_roi = True
-                    # Undo: reset offset so we use the full sensor
-                    cam.get_feature_by_name("OffsetX").set(0)
-                    try:
-                        cam.get_feature_by_name("OffsetY").set(0)
-                    except Exception:
-                        pass
+                f = cam.get_feature_by_name(feat)
+                f.set(f.get_range()[1])
             except Exception:
-                pass  # can't move OffsetX → probably true binning
+                pass
 
-            if is_roi:
-                # Camera is doing ROI, not full-sensor binning.  Reset the camera
-                # to full resolution and apply the requested reduction in software
-                # so all binning levels cover the same physical field of view.
-                logger.warning(
-                    "BinningHorizontal=%d is ROI on this camera — "
-                    "using full-res + software %dx downsample for consistent FOV",
-                    factor, factor,
-                )
-                for feat in ("BinningHorizontal", "BinningVertical"):
-                    try:
-                        cam.get_feature_by_name(feat).set(1)
-                    except Exception:
-                        pass
-                # Explicitly restore full sensor dimensions — some cameras (Alvium)
-                # keep Width/Height at the last binned value after resetting binning.
-                for feat, val in (("Width", SENSOR_WIDTH), ("Height", SENSOR_HEIGHT)):
-                    try:
-                        cam.get_feature_by_name(feat).set(val)
-                    except Exception:
-                        pass
-                self._software_scale   = factor
-                self.native_width      = target_w
-                self.native_height     = target_h
-                self.live_is_true_binning = True
-                logger.info(
-                    "Software %dx downsample: output %dx%d, full sensor FOV",
-                    factor, target_w, target_h,
-                )
-            else:
-                # True hardware binning — full sensor covered.
-                self._software_scale   = 1
-                self.native_width      = target_w
-                self.native_height     = target_h
-                self.live_is_true_binning = True
-                logger.info("Hardware binning %dx applied: full-sensor %dx%d", factor, target_w, target_h)
-            return
+        try:
+            self.native_width  = int(cam.get_feature_by_name("Width").get())
+            self.native_height = int(cam.get_feature_by_name("Height").get())
+        except Exception:
+            self.native_width  = SENSOR_WIDTH  // factor
+            self.native_height = SENSOR_HEIGHT // factor
 
-        except Exception as exc:
-            logger.warning("Binning %dx not supported (%s) — software downscale fallback", factor, exc)
-
-        # Last resort: full resolution with software downscale.
-        self._software_scale   = factor
-        self.native_width      = target_w
-        self.native_height     = target_h
         self.live_is_true_binning = True
-        logger.info("Software %dx downsample fallback: %dx%d", factor, target_w, target_h)
+        logger.info("Live mode: binning %dx → %dx%d", factor, self.native_width, self.native_height)
 
     def _apply_software_scale(self, img: np.ndarray) -> np.ndarray:
         """Downsample img by self._software_scale using area averaging."""
@@ -479,14 +391,17 @@ class AlviumCameraManager:
         fmt = frame.get_pixel_format()
 
         if fmt == vmbpy.PixelFormat.BayerRG8:
-            # BayerRG8 = RGGB; use edge-aware demosaicing to reduce colour fringing
-            bgr = cv2.cvtColor(raw, cv2.COLOR_BayerRG2BGR_EA)
+            # GenICam BayerRG maps to OpenCV's *BG* code — using RG here swaps R↔B
+            # (OpenCV's Bayer naming is offset from GenICam's). Edge-aware to reduce
+            # colour fringing.
+            bgr = cv2.cvtColor(raw, cv2.COLOR_BayerBG2BGR_EA)
             return bgr
 
         elif fmt == vmbpy.PixelFormat.BayerRG12:
             # raw arrives as uint16 with values in [0, 4095]
-            # Debayer at 16-bit then scale to full uint16 range for consistency
-            bgr16 = cv2.cvtColor(raw, cv2.COLOR_BayerRG2BGR)
+            # Debayer at 16-bit then scale to full uint16 range for consistency.
+            # BG (not RG): GenICam BayerRG → OpenCV BayerBG, else R↔B swap.
+            bgr16 = cv2.cvtColor(raw, cv2.COLOR_BayerBG2BGR)
             bgr16 = (bgr16 * 16).astype(np.uint16)   # 12-bit → 16-bit
             return bgr16
 
@@ -515,9 +430,9 @@ class AlviumCameraManager:
         return 0.0
 
     def set_gain_db(self, gain_db: float):
-        """Set analogue gain in dB."""
+        """Set analogue gain in dB (clamped to the Alvium's 0–48 dB range)."""
         if self._cam:
-            self._cam.get_feature_by_name("Gain").set(float(gain_db))
+            self._cam.get_feature_by_name("Gain").set(float(max(0.0, min(48.0, gain_db))))
 
     def get_gain_db(self) -> float:
         if self._cam:
@@ -529,28 +444,33 @@ class AlviumCameraManager:
         if self._cam:
             self._cam.get_feature_by_name("ExposureAuto").set(mode)
 
-    def set_white_balance_kelvin(self, kelvin: int):
-        """Set white balance from a colour temperature in Kelvin.
+    def set_balance_ratio(self, channel: str, value: float):
+        """Set a manual white-balance gain for 'Red' or 'Blue' (Green fixed at 1.0).
 
-        Maps Kelvin → (R_gain, B_gain) relative to G using a linear
-        approximation of the Planckian locus.  G ratio stays at 1.0.
-          2800 K (warm/tungsten): R≈2.2, B≈0.7
-          5500 K (daylight):      R≈1.2, B≈1.3
-          7500 K (cool/blue):     R≈0.8, B≈2.0
+        Continuous auto-WB is forced Off first so the manual ratio sticks.
         """
         if not self._cam:
             return
-        t = max(0.0, min(1.0, (kelvin - 2800) / (7500 - 2800)))
-        r_ratio = 2.2 - t * 1.4   # 2.2 → 0.8
-        b_ratio = 0.7 + t * 1.3   # 0.7 → 2.0
         try:
             self._cam.get_feature_by_name("BalanceWhiteAuto").set("Off")
-            for channel, ratio in (("Red", r_ratio), ("Blue", b_ratio)):
-                self._cam.get_feature_by_name("BalanceRatioSelector").set(channel)
-                self._cam.get_feature_by_name("BalanceRatio").set(float(ratio))
-            logger.info("WB set: %d K → R=%.2f G=1.00 B=%.2f", kelvin, r_ratio, b_ratio)
+            self._cam.get_feature_by_name("BalanceRatioSelector").set(channel)
+            self._cam.get_feature_by_name("BalanceRatio").set(float(value))
+            logger.info("WB %s ratio → %.3f", channel, value)
         except Exception as exc:
-            logger.warning("Could not set white balance: %s", exc)
+            logger.warning("Could not set %s balance ratio: %s", channel, exc)
+
+    def get_balance_ratio(self, channel: str) -> float:
+        """Read back the current 'Red'/'Blue' white-balance gain."""
+        if not self._cam:
+            return 1.0
+        try:
+            self._cam.get_feature_by_name("BalanceRatioSelector").set(channel)
+            return float(self._cam.get_feature_by_name("BalanceRatio").get())
+        except Exception:
+            return 1.0
+
+    # Note: no auto white-balance (one-shot or continuous). Microscopy scenes are
+    # never neutral/white, so any auto-WB estimate is meaningless — WB is manual only.
 
     # ------------------------------------------------------------------
     # Convenience: save a capture-mode frame to disk
@@ -584,6 +504,8 @@ class MockCameraManager:
         self.native_width  = SENSOR_WIDTH  // DEFAULT_LIVE_FACTOR
         self.native_height = SENSOR_HEIGHT // DEFAULT_LIVE_FACTOR
         self._mode = "live"
+        self.live_is_true_binning = True
+        self._wb = {'Red': 1.0, 'Blue': 1.0}
 
     def connect(self) -> bool:
         logger.info("MockCameraManager active (no hardware)")
@@ -624,6 +546,8 @@ class MockCameraManager:
     def set_gain_db(self, _): pass
     def get_gain_db(self): return 0.0
     def set_auto_exposure(self, _): pass
+    def set_balance_ratio(self, channel, value): self._wb[channel] = float(value)
+    def get_balance_ratio(self, channel): return self._wb.get(channel, 1.0)
     def capture_to_file(self, path): return False
 
 

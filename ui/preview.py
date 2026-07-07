@@ -114,15 +114,17 @@ class PreviewWindow(QWidget):
         # Imaging state — mirrored here so the info overlay can read them back.
         self._info_exposure_us = 6000.0
         self._info_gain_db     = 0.0
-        self._info_wb_kelvin   = 5300
+        self._info_wb_red      = 1.0
+        self._info_wb_blue     = 1.0
         self._info_auto_exp    = False
-        self._info_binning     = 4
+        self._info_binning     = 1
 
         # controls.py emits exposure in µs (after the µs refactor).
         controller.exposure_changed.connect(self._on_exposure_changed)
         controller.gain_changed.connect(self._on_gain_changed)
         controller.auto_exposure_changed.connect(self._set_auto_exposure)
-        controller.wb_temperature_changed.connect(self._set_wb_temperature)
+        controller.wb_red_changed.connect(self._set_wb_red)
+        controller.wb_blue_changed.connect(self._set_wb_blue)
         controller.magnification_changed.connect(self.set_magnification)
         controller.show_scale_bar_changed.connect(self.set_show_scale_bar)
         controller.color_changed.connect(self.set_color)
@@ -300,7 +302,7 @@ class PreviewWindow(QWidget):
             lines = [
                 f"Mag: {self.magnification}   Bin: {self._info_binning}x",
                 f"Exp: {exp_str}",
-                f"Gain: {self._info_gain_db:.1f} dB   WB: {self._info_wb_kelvin} K",
+                f"Gain: {self._info_gain_db:.1f} dB   WB R/B: {self._info_wb_red:.2f}/{self._info_wb_blue:.2f}",
                 f"FPS: {self.measured_fps:.1f}",
             ]
 
@@ -372,10 +374,16 @@ class PreviewWindow(QWidget):
         self._info_auto_exp = enabled
         self._hud_cache = []
 
-    def _set_wb_temperature(self, kelvin):
-        if hasattr(self.cap, 'set_white_balance_kelvin'):
-            self.cap.set_white_balance_kelvin(kelvin)
-        self._info_wb_kelvin = kelvin
+    def _set_wb_red(self, ratio):
+        if hasattr(self.cap, 'set_balance_ratio'):
+            self.cap.set_balance_ratio('Red', ratio)
+        self._info_wb_red = ratio
+        self._hud_cache = []
+
+    def _set_wb_blue(self, ratio):
+        if hasattr(self.cap, 'set_balance_ratio'):
+            self.cap.set_balance_ratio('Blue', ratio)
+        self._info_wb_blue = ratio
         self._hud_cache = []
 
     def start_color_pick(self):

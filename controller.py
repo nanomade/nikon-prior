@@ -16,7 +16,8 @@ class Controller(QObject):
     hud_changed = pyqtSignal(bool)
     resolution_changed = pyqtSignal(tuple)
     native_zoom_toggled = pyqtSignal(bool)
-    wb_temperature_changed = pyqtSignal(int)
+    wb_red_changed = pyqtSignal(float)      # manual Red BalanceRatio (0.25–8.0)
+    wb_blue_changed = pyqtSignal(float)     # manual Blue BalanceRatio (0.25–8.0)
     binning_changed = pyqtSignal(int)
     zoom_under_cursor_changed = pyqtSignal(bool)
 
