@@ -3,6 +3,12 @@ __pycache__/
 *.pyo
 .env
 ui_settings.json
+autofocus_defaults.json
+file_save_settings.json
 autofocus_logs/
 data/
 *.log
+
+# Runtime capture output
+frame_*.png
+view_*.png
