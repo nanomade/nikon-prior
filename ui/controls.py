@@ -225,6 +225,24 @@ class ControlWindow(QWidget):
         grid.addWidget(capture_frame_button, 18, 0, 1, 3)
 
         layout.addLayout(grid)
+
+        # ── Live Histogram (collapsed by default; ported from standa_stacker) ──
+        from ui.histogram_widget import LiveHistogram
+        self._histogram = LiveHistogram(preview)
+        hist_btn = QPushButton("  ▶  Live Histogram")
+        hist_btn.setCheckable(True)
+        hist_btn.setChecked(False)
+        hist_btn.setStyleSheet("text-align: left; padding-left: 14px;")
+
+        def _toggle_hist(checked):
+            self._histogram.setVisible(checked)
+            hist_btn.setText(f"  {'▼' if checked else '▶'}  Live Histogram")
+
+        hist_btn.clicked.connect(_toggle_hist)
+        self._histogram.setVisible(False)
+        layout.addWidget(hist_btn)
+        layout.addWidget(self._histogram)
+
         self.setLayout(layout)
 
         self.timer = QTimer(self)

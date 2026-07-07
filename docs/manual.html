@@ -379,10 +379,10 @@
 <!-- ─────────────────────────────────────── -->
 <section id="launching">
 <h2>Launching the Software</h2>
-<pre>cd ~/nikon-prior
-source ~/nikon-prior/bin/activate     # activate venv
-QT_QPA_PLATFORM=xcb python main.py</pre>
-<p>The <code>QT_QPA_PLATFORM=xcb</code> prefix avoids a Wayland warning; the warning is harmless if omitted. A convenience script <code>start_nikon_prior</code> on the desktop sets this automatically.</p>
+<p>Normal use: press <strong>Super</strong>, search <strong>&ldquo;Nikon-Prior&rdquo;</strong> and click <strong>Nikon-Prior Microscope Control</strong>, or double-click the Desktop icon. The launcher is installed system-wide (every user account sees it) and runs <code>scripts/launch.sh</code>, which activates the Python venv and sets <code>QT_QPA_PLATFORM=xcb</code> automatically.</p>
+<p>From a terminal:</p>
+<pre>bash ~/nikon-prior/scripts/launch.sh</pre>
+<p>The script auto-detects the venv (<code>~/venv</code>, <code>./venv</code>, <code>./.venv</code>, <code>~/nikon-prior-venv</code> or the shared <code>/opt/nikon-prior-venv</code>); override with <code>NIKON_PRIOR_VENV=/path/to/venv</code>. To (re)install the launchers run <code>./install_launchers.sh</code> (system-wide, needs sudo) or <code>./install_launchers.sh --dev</code> (current user, runs from the working copy).</p>
 <p>On startup the application:</p>
 <ol>
   <li>Connects to the ProScan III controller (auto-detects serial port)</li>
@@ -432,9 +432,11 @@ QT_QPA_PLATFORM=xcb python main.py</pre>
 <h3>White Balance</h3>
 <div class="controls"><table>
   <tr><th>Control</th><th>Description</th></tr>
-  <tr><td>WB Temp (K)</td><td>Sets the Red and Blue channel BalanceRatio on the camera using a colour-temperature approximation. Range 2800 K (warm/tungsten) to 7500 K (cool/daylight). Green is fixed at 1.0 by the camera. The default 5300 K gives a neutral result on this setup.</td></tr>
+  <tr><td>R slider</td><td>Red channel gain (camera BalanceRatio), range 0.25&ndash;8.00. Green is fixed at 1.0 by the camera.</td></tr>
+  <tr><td>B slider</td><td>Blue channel gain (camera BalanceRatio), range 0.25&ndash;8.00.</td></tr>
 </table></div>
-<div class="tip"><strong>Tip:</strong> If colours look wrong after changing objectives or light intensity, adjust WB Temp to re-neutralise the grey background.</div>
+<div class="tip"><strong>Tip:</strong> If colours look wrong after changing objectives or light intensity, re-tune R/B on bare substrate; the Live Histogram's per-channel means make this quick. Settings persist across restarts.</div>
+<div class="warn"><strong>There is deliberately no auto white balance</strong> (continuous or one-shot): microscopy scenes contain nothing white or neutral, so any auto-WB estimate produces nonsense ratios. Setting either slider also forces the camera's <code>BalanceWhiteAuto</code> feature Off.</div>
 </section>
 
 <!-- Magnification -->
@@ -804,7 +806,7 @@ QT_QPA_PLATFORM=xcb python main.py</pre>
 <p>The Prior PS3H122 coupled to the Nikon fine focus via the H122KON kit gives approximately 25 mm of Z travel. The slider range is set accordingly. Do not attempt to drive Z beyond the mechanical limits of the fine focus knob.</p>
 
 <h3>White balance</h3>
-<p>The default WB setting is 5300 K. The mapping from Kelvin to BalanceRatio values is a linear approximation and may need adjustment for different illumination sources. If you change the illuminator, re-optimise the slider and note the new preferred value.</p>
+<p>White balance is manual: direct Red and Blue BalanceRatio gains (0.25&ndash;8.00, Green fixed at 1.0). If you change the illuminator or objective, re-tune R/B on bare substrate and let the app persist the values. There is no auto-WB by design &mdash; nothing in these scenes is white, so automatic estimates are meaningless.</p>
 </section>
 
 <!-- ─────────────────────────────────────── -->

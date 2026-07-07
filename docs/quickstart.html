@@ -164,12 +164,11 @@
   <div class="card accent">
     <h2>Launch</h2>
     <ol class="steps">
-      <li>Activate the Python venv: <code>source ~/nikon-prior/bin/activate</code></li>
-      <li>Run: <code>QT_QPA_PLATFORM=xcb python main.py</code></li>
-      <li>The <strong>Launcher</strong> window opens. Click buttons to open panels.</li>
-      <li>Click <strong>Open Camera Preview</strong> &rarr; live image appears.</li>
-      <li>Click <strong>Open Imaging Controls</strong> &rarr; adjust exposure, binning, WB.</li>
+      <li>Press <strong>Super</strong>, search <strong>&ldquo;Nikon-Prior&rdquo;</strong>, click <strong>Nikon-Prior Microscope Control</strong> &mdash; or double-click the Desktop icon.</li>
+      <li>The app opens with the live preview filling the centre pane and the control panels alongside.</li>
+      <li>Adjust exposure, gain, binning and WB in the <strong>Imaging Controls</strong> column.</li>
     </ol>
+    <div class="tip"><strong>Terminal alternative:</strong> <code>bash ~/nikon-prior/scripts/launch.sh</code> &mdash; finds the Python venv automatically (<code>~/venv</code> etc.; override with <code>NIKON_PRIOR_VENV</code>).</div>
     <div class="tip"><strong>No camera?</strong> App falls back to MockCamera (synthetic noise). Check USB connection and Vimba X runtime if camera is missing.</div>
     <div class="warn"><strong>"Camera already in use"</strong> &mdash; run <code>pkill -f main.py</code> or replug USB.</div>
   </div>
@@ -180,7 +179,8 @@
       <li>Select magnification in Imaging Controls</li>
       <li>Set binning to <strong>4x</strong> for fast overview, <strong>1x</strong> for full resolution</li>
       <li>Adjust exposure (log slider, 0.01–1000 ms) or enable Auto Exposure</li>
-      <li>Set white balance temperature (~2800 K for tungsten illumination)</li>
+      <li>Set white balance with the <strong>R</strong>/<strong>B</strong> gain sliders (manual only &mdash; there is deliberately no auto-WB)</li>
+      <li>Expand <strong>Live Histogram</strong> to judge exposure: brightest channel well to the right, no CLIP flag</li>
       <li>Navigate stage with XY sliders or joystick</li>
       <li>Focus with Z slider or run Autofocus</li>
       <li>Enable Scale Bar; disable when saving for analysis</li>
@@ -255,19 +255,17 @@
       <tr><td><strong>2x</strong></td><td>1232 &times; 1028</td><td>Balanced speed/resolution</td></tr>
       <tr><td><strong>4x</strong></td><td>616 &times; 514</td><td>Fast navigation, autofocus</td></tr>
     </table>
-    <div class="tip">All three modes show the <em>same full-sensor FOV</em> — only pixel count changes.</div>
+    <div class="tip">All three modes show the <em>same full-sensor FOV</em>. Binned pixels pool charge, so 2x/4x are correspondingly brighter at the same exposure.</div>
   </div>
 
   <div class="card">
-    <h2>White Balance</h2>
+    <h2>White Balance (manual only)</h2>
     <table>
-      <tr><th>Setting</th><th>Scene</th></tr>
-      <tr><td>2800 K</td><td>Tungsten / warm halogen</td></tr>
-      <tr><td>4000 K</td><td>Cool white fluorescent</td></tr>
-      <tr><td>5300 K (default)</td><td>Neutral LED illumination</td></tr>
-      <tr><td>6500 K</td><td>Daylight / cold LED</td></tr>
+      <tr><th>Control</th><th>Effect</th></tr>
+      <tr><td><strong>R</strong> slider (0.25&ndash;8.00)</td><td>Red channel gain (BalanceRatio)</td></tr>
+      <tr><td><strong>B</strong> slider (0.25&ndash;8.00)</td><td>Blue channel gain (BalanceRatio)</td></tr>
     </table>
-    <div class="tip">Sets Red and Blue BalanceRatio on camera. Green is fixed at 1.0.</div>
+    <div class="tip">Green is fixed at 1.0; settings persist across restarts. There is <em>no auto-WB</em> &mdash; microscopy scenes contain nothing white, so any auto estimate is nonsense. Tune by eye on bare substrate, using the Live Histogram channel means.</div>
   </div>
 
   <div class="card">
@@ -443,7 +441,7 @@
       <tr><td>Mock camera / no live image</td><td>Check USB3 cable; check Vimba X runtime installed; <code>pkill -f main.py</code> then restart</td></tr>
       <tr><td>Image very dark</td><td>Increase exposure; check illumination is on; try Auto Exposure briefly</td></tr>
       <tr><td>Image washed out / saturated</td><td>Reduce exposure; disable Auto Exposure</td></tr>
-      <tr><td>Colour cast</td><td>Adjust WB temperature slider</td></tr>
+      <tr><td>Colour cast</td><td>Adjust the WB R/B gain sliders (check channel means in Live Histogram)</td></tr>
       <tr><td>Flickering image</td><td>Set Flicker Averaging to 3–4 frames</td></tr>
     </table>
   </div>
