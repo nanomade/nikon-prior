@@ -37,6 +37,7 @@ class ControlWindow(QWidget):
 
         self._current_mag = "10x"
         self._exp_presets = {obj: None for obj in _OBJECTIVES}
+        self._wb_defaults = {"red": 1.0, "blue": 1.0}
         self._load_exposure_presets()
 
         self.setMinimumWidth(320)
@@ -105,6 +106,12 @@ class ControlWindow(QWidget):
         wb_row.addWidget(self._wb_blue_text)
 
         grid.addLayout(wb_row, 2, 1, 1, 2)
+
+        # Apply the rig's WB defaults from focus_presets.json (tungsten R/B
+        # gains). setValue fires valueChanged, which pushes the ratios to the
+        # camera. Last-session values from ui_settings may override below.
+        self._wb_red_slider.setValue(max(5, min(160, round(self._wb_defaults["red"] * 20))))
+        self._wb_blue_slider.setValue(max(5, min(160, round(self._wb_defaults["blue"] * 20))))
 
         # --- Auto Exposure ---
         self._auto_exp_check = auto_exp_check = QCheckBox("Auto Exposure")
@@ -275,6 +282,10 @@ class ControlWindow(QWidget):
                     if us < 1000:       # likely old 100µs-unit value
                         us *= 100
                     self._exp_presets[mag] = us
+            wb = data.get("wb", {})
+            for ch in ("red", "blue"):
+                if wb.get(ch) is not None:
+                    self._wb_defaults[ch] = float(wb[ch])
         except Exception:
             pass
 
