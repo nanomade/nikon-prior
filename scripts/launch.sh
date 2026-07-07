@@ -12,7 +12,8 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 # kept separately (default $HOME/venv) rather than inside the project dir.
 VENV_DIR="${NIKON_PRIOR_VENV:-}"
 if [ -z "$VENV_DIR" ]; then
-    for cand in "$HOME/venv" "$PROJECT_DIR/venv" "$PROJECT_DIR/.venv" "$HOME/nikon-prior-venv"; do
+    for cand in "$HOME/venv" "$PROJECT_DIR/venv" "$PROJECT_DIR/.venv" \
+                "$HOME/nikon-prior-venv" "/opt/nikon-prior-venv"; do
         if [ -f "$cand/bin/activate" ]; then VENV_DIR="$cand"; break; fi
     done
 fi

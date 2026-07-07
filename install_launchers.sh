@@ -4,11 +4,13 @@
 # optionally on the desktop.
 #
 # Usage:
-#   ./install_launchers.sh            # system-wide install to /opt (needs sudo)
+#   ./install_launchers.sh            # system-wide install: /opt copy + menu
+#                                      #   entries for ALL users (needs sudo)
 #   ./install_launchers.sh --dev      # point launchers at THIS working copy —
-#                                      #   no /opt copy, no reinstall after edits
+#                                      #   current user only, no sudo,
+#                                      #   no reinstall after edits
 #   ./install_launchers.sh --desktop  # also add icons to the Desktop
-#   ./install_launchers.sh --remove   # uninstall
+#   ./install_launchers.sh --remove   # uninstall (user + system locations)
 #
 # Flags combine, e.g.  ./install_launchers.sh --dev --desktop
 #
@@ -20,9 +22,15 @@ set -euo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="/opt/nikon-prior"
-APP_DIR="$HOME/.local/share/applications"
-ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
+
+# Per-user locations (dev mode + --desktop)
+USER_APP_DIR="$HOME/.local/share/applications"
+USER_ICON_DIR="$HOME/.local/share/icons/hicolor/scalable/apps"
 DESKTOP_DIR="$HOME/Desktop"
+
+# System-wide locations (default mode) — menu entries visible to every user
+SYS_APP_DIR="/usr/share/applications"
+SYS_ICON_DIR="/usr/share/icons/hicolor/scalable/apps"
 
 # ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -52,10 +60,16 @@ done
 
 if [[ $REMOVE -eq 1 ]]; then
     yellow "Removing Nikon-Prior launchers…"
-    rm -f "$APP_DIR/nikon-prior.desktop" "$APP_DIR/nikon-prior-help.desktop"
-    rm -f "$ICON_DIR/nikon-prior.svg" "$ICON_DIR/nikon-prior-help.svg"
+    rm -f "$USER_APP_DIR/nikon-prior.desktop" "$USER_APP_DIR/nikon-prior-help.desktop"
+    rm -f "$USER_ICON_DIR/nikon-prior.svg" "$USER_ICON_DIR/nikon-prior-help.svg"
     rm -f "$DESKTOP_DIR/nikon-prior.desktop" "$DESKTOP_DIR/nikon-prior-help.desktop"
-    update-desktop-database "$APP_DIR" 2>/dev/null || true
+    if [ -f "$SYS_APP_DIR/nikon-prior.desktop" ] || [ -f "$SYS_ICON_DIR/nikon-prior.svg" ]; then
+        yellow "Removing system-wide launchers (requires sudo)…"
+        sudo rm -f "$SYS_APP_DIR/nikon-prior.desktop" "$SYS_APP_DIR/nikon-prior-help.desktop"
+        sudo rm -f "$SYS_ICON_DIR/nikon-prior.svg" "$SYS_ICON_DIR/nikon-prior-help.svg"
+        sudo update-desktop-database "$SYS_APP_DIR" 2>/dev/null || true
+    fi
+    update-desktop-database "$USER_APP_DIR" 2>/dev/null || true
     gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
     green "Uninstalled."
     exit 0
@@ -67,30 +81,38 @@ echo ""
 if [[ $DEV -eq 1 ]]; then
     green "═══ Nikon-Prior Launcher Installer (dev mode) ═══"
 else
-    green "═══ Nikon-Prior Launcher Installer ═══"
+    green "═══ Nikon-Prior Launcher Installer (system-wide) ═══"
 fi
 echo ""
 
 require_cmd xdg-open
 require_cmd update-desktop-database
 
-# APP_ROOT is the directory the launchers exec from; ICON_MAIN/ICON_HELP are the
-# icon paths the .desktop entries reference.
+# APP_ROOT is the directory the launchers exec from; APP_DIR/ICON_DIR are where
+# the .desktop entries and icons are installed.
 if [[ $DEV -eq 1 ]]; then
     APP_ROOT="$PROJECT_DIR"
-    ICON_MAIN="$PROJECT_DIR/assets/nikon-prior.svg"
-    ICON_HELP="$PROJECT_DIR/assets/nikon-prior-help.svg"
-    info "Mode        : dev (launchers point at the working copy)"
+    APP_DIR="$USER_APP_DIR"
+    ICON_DIR="$USER_ICON_DIR"
+    info "Mode        : dev (current user; launchers point at the working copy)"
     info "Project dir : $PROJECT_DIR"
     info "App dir     : $APP_DIR"
 else
     APP_ROOT="$INSTALL_DIR"
-    ICON_MAIN="$ICON_DIR/nikon-prior.svg"
-    ICON_HELP="$ICON_DIR/nikon-prior-help.svg"
-    info "Mode        : system-wide"
+    APP_DIR="$SYS_APP_DIR"
+    ICON_DIR="$SYS_ICON_DIR"
+    info "Mode        : system-wide (all users)"
     info "Project dir : $PROJECT_DIR"
     info "Install dir : $INSTALL_DIR"
     info "App dir     : $APP_DIR"
+fi
+
+ICON_MAIN="$ICON_DIR/nikon-prior.svg"
+ICON_HELP="$ICON_DIR/nikon-prior-help.svg"
+if [[ $DEV -eq 1 ]]; then
+    # Dev mode references the icons in place — no copy step.
+    ICON_MAIN="$PROJECT_DIR/assets/nikon-prior.svg"
+    ICON_HELP="$PROJECT_DIR/assets/nikon-prior-help.svg"
 fi
 
 # ─── system-wide copy + icon install (skipped in dev mode) ──────────────────
@@ -109,11 +131,11 @@ if [[ $DEV -eq 0 ]]; then
     sudo chmod a+x "$INSTALL_DIR/scripts/launch.sh" "$INSTALL_DIR/scripts/open_help.sh"
     info "Done."
 
-    yellow "\nInstalling icons…"
-    mkdir -p "$ICON_DIR"
-    cp "$PROJECT_DIR/assets/nikon-prior.svg"      "$ICON_DIR/nikon-prior.svg"
-    cp "$PROJECT_DIR/assets/nikon-prior-help.svg" "$ICON_DIR/nikon-prior-help.svg"
-    gtk-update-icon-cache -f -t "$HOME/.local/share/icons/hicolor" 2>/dev/null || true
+    yellow "\nInstalling icons system-wide…"
+    sudo mkdir -p "$ICON_DIR"
+    sudo cp "$PROJECT_DIR/assets/nikon-prior.svg"      "$ICON_DIR/nikon-prior.svg"
+    sudo cp "$PROJECT_DIR/assets/nikon-prior-help.svg" "$ICON_DIR/nikon-prior-help.svg"
+    sudo gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
     info "Icons installed to $ICON_DIR"
 else
     yellow "\nDev mode: skipping /opt copy and icon install."
@@ -124,31 +146,41 @@ fi
 # ─── .desktop files ─────────────────────────────────────────────────────────
 
 yellow "\nInstalling application launchers…"
-mkdir -p "$APP_DIR"
 
 # Rewrite Exec and Icon to the chosen location. The /bin/bash wrapper runs the
 # target scripts regardless of their executable bit.
+TMPDIR_DESKTOP="$(mktemp -d)"
+trap 'rm -rf "$TMPDIR_DESKTOP"' EXIT
+
 sed \
     -e "s|Exec=.*|Exec=/bin/bash $APP_ROOT/scripts/launch.sh|" \
     -e "s|Icon=.*|Icon=$ICON_MAIN|" \
-    "$PROJECT_DIR/nikon-prior.desktop" > "$APP_DIR/nikon-prior.desktop"
+    "$PROJECT_DIR/nikon-prior.desktop" > "$TMPDIR_DESKTOP/nikon-prior.desktop"
 
 sed \
     -e "s|Exec=.*|Exec=/bin/bash $APP_ROOT/scripts/open_help.sh|" \
     -e "s|Icon=.*|Icon=$ICON_HELP|" \
-    "$PROJECT_DIR/nikon-prior-help.desktop" > "$APP_DIR/nikon-prior-help.desktop"
+    "$PROJECT_DIR/nikon-prior-help.desktop" > "$TMPDIR_DESKTOP/nikon-prior-help.desktop"
 
-chmod +x "$APP_DIR/nikon-prior.desktop" "$APP_DIR/nikon-prior-help.desktop"
-update-desktop-database "$APP_DIR"
+if [[ $DEV -eq 1 ]]; then
+    mkdir -p "$APP_DIR"
+    install -m 755 "$TMPDIR_DESKTOP/nikon-prior.desktop"      "$APP_DIR/"
+    install -m 755 "$TMPDIR_DESKTOP/nikon-prior-help.desktop" "$APP_DIR/"
+    update-desktop-database "$APP_DIR" 2>/dev/null || true
+else
+    sudo install -m 644 "$TMPDIR_DESKTOP/nikon-prior.desktop"      "$APP_DIR/"
+    sudo install -m 644 "$TMPDIR_DESKTOP/nikon-prior-help.desktop" "$APP_DIR/"
+    sudo update-desktop-database "$APP_DIR" 2>/dev/null || true
+fi
 info "Launchers installed to $APP_DIR"
 
-# ─── optional desktop shortcuts ─────────────────────────────────────────────
+# ─── optional desktop shortcuts (current user) ──────────────────────────────
 
 if [[ $DESKTOP -eq 1 ]]; then
     yellow "\nAdding Desktop shortcuts…"
     if [ -d "$DESKTOP_DIR" ]; then
-        cp "$APP_DIR/nikon-prior.desktop"      "$DESKTOP_DIR/"
-        cp "$APP_DIR/nikon-prior-help.desktop" "$DESKTOP_DIR/"
+        cp "$TMPDIR_DESKTOP/nikon-prior.desktop"      "$DESKTOP_DIR/"
+        cp "$TMPDIR_DESKTOP/nikon-prior-help.desktop" "$DESKTOP_DIR/"
         chmod +x "$DESKTOP_DIR/nikon-prior.desktop" "$DESKTOP_DIR/nikon-prior-help.desktop"
         # Mark as trusted (GNOME)
         gio set "$DESKTOP_DIR/nikon-prior.desktop"      metadata::trusted true 2>/dev/null || true
@@ -164,7 +196,12 @@ fi
 echo ""
 green "Installation complete!"
 echo ""
-info "• Search for 'Nikon-Prior' in your application menu"
+info "• Search for 'Nikon-Prior' in the application menu"
+if [[ $DEV -eq 0 ]]; then
+info "• Menu entries are system-wide: every user on this machine sees them"
+info "• Each user needs a Python venv the launcher can find:"
+info "    ~/venv, or the shared /opt/nikon-prior-venv (see launch.sh)"
+fi
 if [[ $DESKTOP -eq 1 ]]; then
 info "• Two icons have been placed on your Desktop"
 fi
