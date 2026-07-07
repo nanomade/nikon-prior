@@ -1,0 +1,7 @@
+{
+  "_comment": "Per-rig calibration for nikon-257, read by core/rig_calibration.py. camera_rotation_deg: measure by moving the stage +X and fitting the apparent image angle (0.0 = uncalibrated placeholder). objective_offsets / parfocal_z_offsets: per-magnification offsets relative to 100x.",
+  "camera_rotation_deg": 0.0,
+  "objective_offsets": {},
+  "parfocal_z_offsets": {},
+  "resolution_offsets": {}
+}

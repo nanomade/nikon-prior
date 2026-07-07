@@ -9,6 +9,7 @@ from PyQt5.QtCore import QTimer, Qt, QPoint, pyqtSignal
 from PyQt5.QtGui import QImage, QPixmap, QMouseEvent
 
 from camera_manager import create_camera_manager
+from vision.camera_params import px_per_um
 
 class PreviewWindow(QWidget):
     _warned_calibrations = set()  # suppress repeated per-frame warnings
@@ -19,22 +20,10 @@ class PreviewWindow(QWidget):
         self.setWindowTitle("Camera Preview")
         self.controller = controller
     
-        # Calibration table: magnification string → pixels per µm (ppm).
-        # The Alvium 1800 U-508c always runs at full resolution (2464×2056,
-        # decimation not supported), so resolution is not a calibration axis.
-        #
-        # Theoretical starting point: Sony IMX250 pixel pitch = 3.45 µm,
-        #   ppm_theory = objective_mag / 3.45
-        # These must be verified with a stage micrometer and updated below.
-        # Set a magnification to None to mark it as uncalibrated — the measure
-        # tool will then show distances in pixels only.
-        self.calibration_table = {
-            "5x":   1.015,       # implied from 10x (linear scaling)
-            "10x":  2.03,        # measured 2026-03-18 on nikon-257 with stage micrometer
-            "20x":  4.06,        # implied from 10x
-            "50x":  10.15,       # implied from 10x
-            "100x": 20.30,       # implied from 10x
-        }
+        # px/µm calibration lives in vision/camera_params.py (single source of
+        # truth, shared with the detection pipeline). Keyed by (mag, frame
+        # width) — the frame width encodes the binning level, so no separate
+        # binning correction is needed at lookup time.
 
         self.cap = create_camera_manager()
         self.native_width  = self.cap.native_width
@@ -166,17 +155,18 @@ class PreviewWindow(QWidget):
     def get_scale_bar_pixels(self, magnification):
         """Return (bar_px, label_str, ppm) or None if uncalibrated.
 
-        ppm is adjusted for the current binning factor: a 2× binned pixel
-        covers 2× the physical area, so there are half as many pixels per µm.
+        The camera_params lookup is keyed by frame width, which already encodes
+        the binning level (a 2× binned frame is 1232 px wide), so no separate
+        binning correction is applied here.
         """
-        ppm = self.calibration_table.get(magnification)
+        ppm = px_per_um(magnification, self.native_width)
         if ppm is None:
-            if magnification not in PreviewWindow._warned_calibrations:
-                print(f"[WARN] No calibration for {magnification} — set ppm in calibration_table")
-                PreviewWindow._warned_calibrations.add(magnification)
+            key = f"{magnification}@{self.native_width}"
+            if key not in PreviewWindow._warned_calibrations:
+                print(f"[WARN] No calibration for {key} — add it to vision/camera_params.py")
+                PreviewWindow._warned_calibrations.add(key)
             return None
 
-        ppm = ppm / self._binning_factor
         bar_um = {"5x": 200, "10x": 100, "20x": 50, "50x": 20, "100x": 5}.get(magnification, 100)
         return int(ppm * bar_um), f"{bar_um} um", ppm
 
