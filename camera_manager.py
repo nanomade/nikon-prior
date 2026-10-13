@@ -469,8 +469,22 @@ class AlviumCameraManager:
         except Exception:
             return 1.0
 
-    # Note: no auto white-balance (one-shot or continuous). Microscopy scenes are
-    # never neutral/white, so any auto-WB estimate is meaningless — WB is manual only.
+    def trigger_auto_wb(self):
+        """Fire BalanceWhiteAuto='Once' — one-shot white-reference calibration.
+
+        Only meaningful with a neutral target (white card/tissue) filling the
+        frame: the sample itself is never neutral in microscopy, so this must
+        never run against a live scene or continuously. The camera converges
+        over the next few frames and reverts to Off; read the resulting ratios
+        back with get_balance_ratio().
+        """
+        if not self._cam:
+            return
+        try:
+            self._cam.get_feature_by_name("BalanceWhiteAuto").set("Once")
+            logger.info("One-shot auto-WB triggered (white-reference calibration)")
+        except Exception as exc:
+            logger.warning("Auto-WB trigger failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Convenience: save a capture-mode frame to disk
@@ -548,6 +562,7 @@ class MockCameraManager:
     def set_auto_exposure(self, _): pass
     def set_balance_ratio(self, channel, value): self._wb[channel] = float(value)
     def get_balance_ratio(self, channel): return self._wb.get(channel, 1.0)
+    def trigger_auto_wb(self): pass
     def capture_to_file(self, path): return False
 
 

@@ -144,7 +144,8 @@ class ControlWindow(QWidget):
         grid.addWidget(self._gain_slider, 1, 1)
         grid.addWidget(self._gain_text, 1, 2)
 
-        # --- White Balance (manual Red/Blue gains; no auto-WB on this rig) ---
+        # --- White Balance (manual Red/Blue gains; "Auto" = one-shot
+        # white-reference calibration against a white card, never scene-based) ---
         grid.addWidget(QLabel("White Bal:"), 2, 0)
         wb_row = QHBoxLayout()
 
@@ -203,6 +204,16 @@ class ControlWindow(QWidget):
         self._wb_blue_slider.setValue(20)
         wb_row.addWidget(self._wb_blue_slider)
         wb_row.addWidget(self._wb_blue_text)
+
+        auto_wb_btn = QPushButton("Auto")
+        auto_wb_btn.setToolTip(
+            "One-shot white-reference calibration.\n"
+            "Place a white surface (tissue paper, white card) under the objective,\n"
+            "defocus slightly so it fills the frame uniformly, then click.\n"
+            "The camera samples it once to set the R/B gains (auto-WB stays off\n"
+            "otherwise). Fine-tune afterwards with the R and B sliders.")
+        auto_wb_btn.clicked.connect(self._trigger_auto_wb)
+        wb_row.addWidget(auto_wb_btn)
 
         grid.addLayout(wb_row, 2, 1, 1, 2)
 
@@ -504,6 +515,36 @@ class ControlWindow(QWidget):
     # ------------------------------------------------------------------
     # White balance persistence (focus_presets.json is the single WB store)
     # ------------------------------------------------------------------
+
+    def _trigger_auto_wb(self):
+        """One-shot white-reference WB: fire BalanceWhiteAuto='Once' on the
+        camera, then read the converged ratios back into the sliders.
+
+        The tooltip workflow (white card under the objective) is what makes
+        this valid — the camera never auto-balances against the sample."""
+        cap = self.preview.cap if self.preview else None
+        if cap is None or not hasattr(cap, "trigger_auto_wb"):
+            return
+        cap.trigger_auto_wb()
+        QTimer.singleShot(500, self._refresh_wb_from_camera)
+
+    def _refresh_wb_from_camera(self):
+        """Sync R/B sliders from the camera without re-pushing the ratios
+        (the camera already holds them after the one-shot converges)."""
+        info = self.preview.get_camera_info() if self.preview else None
+        if not info:
+            return
+        r = float(info.get("balance_red", 1.0))
+        b = float(info.get("balance_blue", 1.0))
+        self._wb_red_slider.blockSignals(True)
+        self._wb_blue_slider.blockSignals(True)
+        self._wb_red_slider.setValue(max(5, min(160, int(round(r * 20)))))
+        self._wb_blue_slider.setValue(max(5, min(160, int(round(b * 20)))))
+        self._wb_red_text.setText(f"{r:.2f}")
+        self._wb_blue_text.setText(f"{b:.2f}")
+        self._wb_red_slider.blockSignals(False)
+        self._wb_blue_slider.blockSignals(False)
+        self._wb_save_timer.start()
 
     def _save_wb(self):
         """Persist current R/B WB ratios to focus_presets.json (debounced)."""
